@@ -19,8 +19,8 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
+	"github.com/fabianofranz/origin/pkg/cmd/server/etcd"
 	"github.com/openshift/origin/pkg/cmd/flagtypes"
-	"github.com/openshift/origin/pkg/cmd/server/etcd"
 	"github.com/openshift/origin/pkg/cmd/server/kubernetes"
 	"github.com/openshift/origin/pkg/cmd/server/origin"
 	"github.com/openshift/origin/pkg/cmd/util"
@@ -60,7 +60,7 @@ instance.
 `
 
 // config is a struct that the command stores flag values into.
-type config struct {
+type Config struct {
 	Docker *docker.Helper
 
 	MasterAddr     flagtypes.Addr
@@ -90,7 +90,7 @@ func NewCommandStartServer(name string) *cobra.Command {
 		glog.Warningf("Unable to lookup hostname, using %q: %v", hostname, err)
 	}
 
-	cfg := &config{
+	cfg := &Config{
 		Docker: docker.NewHelper(),
 
 		MasterAddr:     flagtypes.Addr{Value: "localhost:8080", DefaultScheme: "http", DefaultPort: 8080, AllowPrefix: true}.Default(),
@@ -108,7 +108,7 @@ func NewCommandStartServer(name string) *cobra.Command {
 		Short: "Launch OpenShift",
 		Long:  longCommandDesc,
 		Run: func(c *cobra.Command, args []string) {
-			if err := start(cfg, args); err != nil {
+			if err := Start(cfg, args); err != nil {
 				glog.Fatal(err)
 			}
 		},
@@ -136,7 +136,7 @@ func NewCommandStartServer(name string) *cobra.Command {
 }
 
 // run launches the appropriate startup modes or returns an error.
-func start(cfg *config, args []string) error {
+func Start(cfg *Config, args []string) error {
 	if len(args) > 1 {
 		return errors.New("You may start an OpenShift all-in-one server with no arguments, or pass 'master' or 'node' to run in that role.")
 	}
@@ -250,7 +250,7 @@ func start(cfg *config, args []string) error {
 			}
 			kmaster.EnsurePortalFlags()
 
-			osmaster.RunAPI(kmaster, auth, osmaster, &origin.SwaggerAPI{})
+			osmaster.RunAPI(kmaster, auth)
 
 			kmaster.RunScheduler()
 			kmaster.RunReplicationController()
@@ -258,10 +258,10 @@ func start(cfg *config, args []string) error {
 			kmaster.RunMinionController()
 
 		} else {
-			osmaster.RunAPI(auth, osmaster, &origin.SwaggerAPI{})
+			osmaster.RunAPI(auth)
 		}
 
-		osmaster.RunAssetServer()
+		//osmaster.RunAssetServer()
 		osmaster.RunBuildController()
 		osmaster.RunDeploymentController()
 		osmaster.RunDeploymentConfigController()
@@ -302,7 +302,7 @@ func start(cfg *config, args []string) error {
 // getEtcdClient creates an etcd client based on the provided config and waits
 // until etcd server is reachable. It errors out and exits if the server cannot
 // be reached for a certain amount of time.
-func getEtcdClient(cfg *config) (*etcdclient.Client, error) {
+func getEtcdClient(cfg *Config) (*etcdclient.Client, error) {
 	etcdServers := []string{cfg.EtcdAddr.URL.String()}
 	etcdClient := etcdclient.NewClient(etcdServers)
 
@@ -335,7 +335,7 @@ func defaultHostname() (string, error) {
 // public IPv4 non-loopback address registered on this host. It will also update the
 // EtcdAddr after if it was not provided.
 // TODO: make me IPv6 safe
-func defaultMasterAddress(cfg *config) error {
+func defaultMasterAddress(cfg *Config) error {
 	if !cfg.MasterAddr.Provided {
 		// If the user specifies a bind address, and the master is not provided, use
 		// the bind port by default
