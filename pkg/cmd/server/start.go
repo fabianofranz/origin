@@ -19,8 +19,8 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
-	"github.com/fabianofranz/origin/pkg/cmd/server/etcd"
 	"github.com/openshift/origin/pkg/cmd/flagtypes"
+	"github.com/openshift/origin/pkg/cmd/server/etcd"
 	"github.com/openshift/origin/pkg/cmd/server/kubernetes"
 	"github.com/openshift/origin/pkg/cmd/server/origin"
 	"github.com/openshift/origin/pkg/cmd/util"
@@ -67,6 +67,7 @@ type Config struct {
 	BindAddr       flagtypes.Addr
 	EtcdAddr       flagtypes.Addr
 	KubernetesAddr flagtypes.Addr
+	AssetAddr      flagtypes.Addr
 	PortalNet      flagtypes.IPNet
 
 	Hostname  string
@@ -80,6 +81,7 @@ type Config struct {
 
 	CORSAllowedOrigins    flagtypes.StringList
 	RequireAuthentication bool
+	RunAssetServer        bool
 }
 
 // NewCommandStartServer provides a CLI handler for 'start' command
@@ -96,11 +98,13 @@ func NewCommandStartServer(name string) *cobra.Command {
 		MasterAddr:     flagtypes.Addr{Value: "localhost:8080", DefaultScheme: "http", DefaultPort: 8080, AllowPrefix: true}.Default(),
 		BindAddr:       flagtypes.Addr{Value: "0.0.0.0:8080", DefaultScheme: "http", DefaultPort: 8080, AllowPrefix: true}.Default(),
 		EtcdAddr:       flagtypes.Addr{Value: "0.0.0.0:4001", DefaultScheme: "http", DefaultPort: 4001}.Default(),
+		AssetAddr:      flagtypes.Addr{Value: "localhost:8081", DefaultScheme: "http", DefaultPort: 8081}.Default(),
 		KubernetesAddr: flagtypes.Addr{DefaultScheme: "http", DefaultPort: 8080}.Default(),
 		PortalNet:      flagtypes.DefaultIPNet("172.30.17.0/24"),
 
-		Hostname: hostname,
-		NodeList: flagtypes.StringList{"127.0.0.1"},
+		Hostname:       hostname,
+		NodeList:       flagtypes.StringList{"127.0.0.1"},
+		RunAssetServer: true,
 	}
 
 	cmd := &cobra.Command{
@@ -208,12 +212,10 @@ func Start(cfg *Config, args []string) error {
 			return fmt.Errorf("Error setting up Kubernetes server storage: %v", err)
 		}
 
-		assetAddr := net.JoinHostPort(cfg.MasterAddr.Host, strconv.Itoa(cfg.BindAddr.Port+1))
-
 		osmaster := &origin.MasterConfig{
 			BindAddr:              cfg.BindAddr.URL.Host,
 			MasterAddr:            cfg.MasterAddr.URL.String(),
-			AssetAddr:             assetAddr,
+			AssetAddr:             cfg.AssetAddr.URL.Host,
 			EtcdHelper:            etcdHelper,
 			RequireAuthentication: cfg.RequireAuthentication,
 		}
@@ -250,7 +252,7 @@ func Start(cfg *Config, args []string) error {
 			}
 			kmaster.EnsurePortalFlags()
 
-			osmaster.RunAPI(kmaster, auth)
+			osmaster.RunAPI(kmaster, auth, osmaster, &origin.SwaggerAPI{})
 
 			kmaster.RunScheduler()
 			kmaster.RunReplicationController()
@@ -258,10 +260,12 @@ func Start(cfg *Config, args []string) error {
 			kmaster.RunMinionController()
 
 		} else {
-			osmaster.RunAPI(auth)
+			osmaster.RunAPI(auth, osmaster, &origin.SwaggerAPI{})
 		}
 
-		//osmaster.RunAssetServer()
+		if cfg.RunAssetServer {
+			osmaster.RunAssetServer()
+		}
 		osmaster.RunBuildController()
 		osmaster.RunDeploymentController()
 		osmaster.RunDeploymentConfigController()
