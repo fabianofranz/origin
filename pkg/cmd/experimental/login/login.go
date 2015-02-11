@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd"
@@ -38,9 +39,15 @@ prompt for user input if not provided.
 
 			usernameFlagProvided := len(usernameFlag) > 0
 
+			configFile, err := getConfigFromDefaultLocations(cmd)
+			if err != nil {
+				glog.Fatalf("%v\n", err)
+			}
+			glog.V(4).Infof("Using config from %v\n", configFile.path)
+
 			// check to see if we're already signed in.  If so, simply make sure that .kubeconfig has that information
 			if userFullName, err := whoami(clientCfg); err == nil && (!usernameFlagProvided || (usernameFlagProvided && usernameFlag == userFullName)) {
-				if err := updateKubeconfigFile(userFullName, clientCfg.BearerToken, f.OpenShiftClientConfig); err != nil {
+				if err := updateKubeconfigFile(userFullName, clientCfg.BearerToken, f.OpenShiftClientConfig, configFile); err != nil {
 					glog.Fatalf("%v\n", err)
 				}
 				fmt.Printf("Already logged into %v as %v\n", clientCfg.Host, userFullName)
@@ -54,7 +61,7 @@ prompt for user input if not provided.
 				}
 
 				if userFullName, err := whoami(clientCfg); err == nil {
-					err = updateKubeconfigFile(userFullName, accessToken, f.OpenShiftClientConfig)
+					err = updateKubeconfigFile(userFullName, accessToken, f.OpenShiftClientConfig, configFile)
 					if err != nil {
 						glog.Fatalf("%v\n", err)
 					} else {
@@ -86,7 +93,25 @@ func whoami(clientCfg *kclient.Config) (string, error) {
 	return me.FullName, nil
 }
 
-func updateKubeconfigFile(username, token string, clientCfg clientcmd.ClientConfig) error {
+// Copy of kubectl/cmd/DefaultClientConfig, using NewNonInteractiveDeferredLoadingClientConfig
+// TODO find and merge duplicates, this is also in other places
+func defaultClientConfig(flags *pflag.FlagSet) clientcmd.ClientConfig {
+	loadingRules := clientcmd.NewClientConfigLoadingRules()
+	loadingRules.EnvVarPath = os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
+	flags.StringVar(&loadingRules.CommandLinePath, "kubeconfig", "", "Path to the kubeconfig file to use for CLI requests.")
+
+	overrides := &clientcmd.ConfigOverrides{}
+	overrideFlags := clientcmd.RecommendedConfigOverrideFlags("")
+	overrideFlags.ContextOverrideFlags.NamespaceShort = "n"
+	clientcmd.BindOverrideFlags(overrides, flags, overrideFlags)
+	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)
+
+	return clientConfig
+}
+
+// TODO logic below should have its own package
+
+func updateKubeconfigFile(username, token string, clientCfg clientcmd.ClientConfig, configFile *configFile) error {
 	rawMergedConfig, err := clientCfg.RawConfig()
 	if err != nil {
 		return err
@@ -127,16 +152,13 @@ func updateKubeconfigFile(username, token string, clientCfg clientcmd.ClientConf
 
 	config.CurrentContext = contextName
 
-	configToModify, err := getConfigFromFile(".kubeconfig")
-	if err != nil {
-		return err
-	}
+	configToModify := configFile.config
 
 	configToWrite, err := MergeConfig(rawMergedConfig, *configToModify, *config)
 	if err != nil {
 		return err
 	}
-	err = clientcmd.WriteToFile(*configToWrite, ".kubeconfig")
+	err = clientcmd.WriteToFile(*configToWrite, configFile.path)
 	if err != nil {
 		return err
 	}
@@ -145,17 +167,60 @@ func updateKubeconfigFile(username, token string, clientCfg clientcmd.ClientConf
 
 }
 
+type configFile struct {
+	config *clientcmdapi.Config
+	path   string
+}
+
+func getConfigFromDefaultLocations(cmd *cobra.Command) (*configFile, error) {
+	// --kubeconfig flag, if provided will only try this one
+	if path := kubecmd.GetFlagString(cmd, "kubeconfig"); len(path) > 0 {
+		config, err := getConfigFromFile(path)
+		if err == nil {
+			return &configFile{config, path}, nil
+		} else {
+			return nil, err
+		}
+	}
+
+	// KUBECONFIG env var
+	path = os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
+	if len(path) > 0 {
+		config, err = getConfigFromFile(path)
+		if err == nil {
+			return &configFile{config, path}, nil
+		} else {
+			glog.V(4).Infof(err.Error())
+		}
+	}
+
+	// .kubeconfig in the local directory
+	path := ".kubeconfig"
+	config, err := getConfigFromFile(path)
+	if err == nil {
+		return &configFile{config, path}, nil
+	} else {
+		glog.V(4).Infof(err.Error())
+	}
+
+	// ~/.kube/.kubeconfig
+	path = os.Getenv("HOME") + "/.kube/.kubeconfig"
+	config, err = getConfigFromFile(path)
+	if err == nil {
+		return &configFile{config, path}, nil
+	} else {
+		glog.V(4).Infof(err.Error())
+	}
+
+	return nil, fmt.Errorf("Config file not found in the default locations.")
+}
+
 func getConfigFromFile(filename string) (*clientcmdapi.Config, error) {
 	var err error
 	config, err := clientcmd.LoadFromFile(filename)
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil {
 		return nil, err
 	}
-
-	if config == nil {
-		config = clientcmdapi.NewConfig()
-	}
-
 	return config, nil
 }
 
