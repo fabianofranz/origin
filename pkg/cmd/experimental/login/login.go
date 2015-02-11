@@ -10,7 +10,6 @@ import (
 	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd"
 	clientcmdapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api"
-	kcmdutil "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd/util"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
 
 	"github.com/openshift/origin/pkg/client"
@@ -34,39 +33,37 @@ prompt for user input if not provided.
 				glog.Fatalf("%v\n", err)
 			}
 
-			username := ""
+			usernameFlag := kubecmd.GetFlagString(cmd, "username")
+			passwordFlag := kubecmd.GetFlagString(cmd, "password")
+
+			usernameFlagProvided := len(usernameFlag) > 0
 
 			// check to see if we're already signed in.  If so, simply make sure that .kubeconfig has that information
-			if userFullName, err := whoami(clientCfg); err == nil {
+			if userFullName, err := whoami(clientCfg); err == nil && (!usernameFlagProvided || (usernameFlagProvided && usernameFlag == userFullName)) {
 				if err := updateKubeconfigFile(userFullName, clientCfg.BearerToken, f.OpenShiftClientConfig); err != nil {
 					glog.Fatalf("%v\n", err)
 				}
-				username = userFullName
+				fmt.Printf("Already logged into %v as %v\n", clientCfg.Host, userFullName)
 
 			} else {
-				usernameFlag := kcmdutil.GetFlagString(cmd, "username")
-				passwordFlag := kcmdutil.GetFlagString(cmd, "password")
-
+				clientCfg.BearerToken = ""
 				accessToken, err := tokencmd.RequestToken(clientCfg, os.Stdin, usernameFlag, passwordFlag)
+
 				if err != nil {
 					glog.Fatalf("%v\n", err)
 				}
-
-				clientCfg.BearerToken = accessToken
 
 				if userFullName, err := whoami(clientCfg); err == nil {
 					err = updateKubeconfigFile(userFullName, accessToken, f.OpenShiftClientConfig)
 					if err != nil {
 						glog.Fatalf("%v\n", err)
 					} else {
-						username = userFullName
+						fmt.Printf("Logged into %v as %v\n", clientCfg.Host, userFullName)
 					}
 				} else {
 					glog.Fatalf("%v\n", err)
 				}
 			}
-
-			fmt.Printf("Logged into %v as %v\n", clientCfg.Host, username)
 		},
 	}
 

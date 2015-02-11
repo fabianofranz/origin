@@ -56,6 +56,8 @@ func RequestToken(clientCfg *kclient.Config, reader io.Reader, defaultUsername s
 		return "", errors.New("Unable to get token.  Try visiting " + requestTokenURL + " for a new token.")
 	}
 
+	clientCfg.BearerToken = tokenGetter.accessToken
+
 	return tokenGetter.accessToken, nil
 }
 
