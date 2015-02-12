@@ -10,11 +10,10 @@ import (
 
 	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd"
-	clientcmdapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/util"
+	kubecmd "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd"
 
 	"github.com/openshift/origin/pkg/client"
-	"github.com/openshift/origin/pkg/cmd/flagtypes"
+	"github.com/openshift/origin/pkg/cmd/cli/config"
 	osclientcmd "github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/cmd/util/tokencmd"
 )
@@ -39,15 +38,15 @@ prompt for user input if not provided.
 
 			usernameFlagProvided := len(usernameFlag) > 0
 
-			configFile, err := getConfigFromDefaultLocations(cmd)
+			configFile, err := config.GetConfigFromDefaultLocations(cmd)
 			if err != nil {
 				glog.Fatalf("%v\n", err)
 			}
-			glog.V(4).Infof("Using config from %v\n", configFile.path)
+			glog.V(4).Infof("Using config from %v\n", configFile.Path)
 
 			// check to see if we're already signed in.  If so, simply make sure that .kubeconfig has that information
 			if userFullName, err := whoami(clientCfg); err == nil && (!usernameFlagProvided || (usernameFlagProvided && usernameFlag == userFullName)) {
-				if err := updateKubeconfigFile(userFullName, clientCfg.BearerToken, f.OpenShiftClientConfig, configFile); err != nil {
+				if err := config.UpdateConfigFile(userFullName, clientCfg.BearerToken, f.OpenShiftClientConfig, configFile); err != nil {
 					glog.Fatalf("%v\n", err)
 				}
 				fmt.Printf("Already logged into %v as %v\n", clientCfg.Host, userFullName)
@@ -61,7 +60,7 @@ prompt for user input if not provided.
 				}
 
 				if userFullName, err := whoami(clientCfg); err == nil {
-					err = updateKubeconfigFile(userFullName, accessToken, f.OpenShiftClientConfig, configFile)
+					err = config.UpdateConfigFile(userFullName, accessToken, f.OpenShiftClientConfig, configFile)
 					if err != nil {
 						glog.Fatalf("%v\n", err)
 					} else {
@@ -76,6 +75,7 @@ prompt for user input if not provided.
 
 	cmds.Flags().StringP("username", "u", "", "Username, will prompt if not provided")
 	cmds.Flags().StringP("password", "p", "", "Password, will prompt if not provided")
+	// TODO should explicitly expose --server (currently global)
 	return cmds
 }
 
@@ -107,134 +107,4 @@ func defaultClientConfig(flags *pflag.FlagSet) clientcmd.ClientConfig {
 	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)
 
 	return clientConfig
-}
-
-// TODO logic below should have its own package
-
-func updateKubeconfigFile(username, token string, clientCfg clientcmd.ClientConfig, configFile *configFile) error {
-	rawMergedConfig, err := clientCfg.RawConfig()
-	if err != nil {
-		return err
-	}
-	clientConfig, err := clientCfg.ClientConfig()
-	if err != nil {
-		return err
-	}
-	namespace, err := clientCfg.Namespace()
-	if err != nil {
-		return err
-	}
-
-	config := clientcmdapi.NewConfig()
-
-	credentialsName := username
-	if len(credentialsName) == 0 {
-		credentialsName = "osc-login"
-	}
-	credentials := clientcmdapi.NewAuthInfo()
-	credentials.Token = token
-	config.AuthInfos[credentialsName] = *credentials
-
-	serverAddr := flagtypes.Addr{Value: clientConfig.Host}.Default()
-	clusterName := fmt.Sprintf("%v:%v", serverAddr.Host, serverAddr.Port)
-	cluster := clientcmdapi.NewCluster()
-	cluster.Server = clientConfig.Host
-	cluster.InsecureSkipTLSVerify = clientConfig.Insecure
-	cluster.CertificateAuthority = clientConfig.CAFile
-	config.Clusters[clusterName] = *cluster
-
-	contextName := clusterName + "-" + credentialsName
-	context := clientcmdapi.NewContext()
-	context.Cluster = clusterName
-	context.AuthInfo = credentialsName
-	context.Namespace = namespace
-	config.Contexts[contextName] = *context
-
-	config.CurrentContext = contextName
-
-	configToModify := configFile.config
-
-	configToWrite, err := MergeConfig(rawMergedConfig, *configToModify, *config)
-	if err != nil {
-		return err
-	}
-	err = clientcmd.WriteToFile(*configToWrite, configFile.path)
-	if err != nil {
-		return err
-	}
-
-	return nil
-
-}
-
-type configFile struct {
-	config *clientcmdapi.Config
-	path   string
-}
-
-func getConfigFromDefaultLocations(cmd *cobra.Command) (*configFile, error) {
-	// --kubeconfig flag, if provided will only try this one
-	if path := kubecmd.GetFlagString(cmd, "kubeconfig"); len(path) > 0 {
-		config, err := getConfigFromFile(path)
-		if err == nil {
-			return &configFile{config, path}, nil
-		} else {
-			return nil, err
-		}
-	}
-
-	// KUBECONFIG env var
-	path = os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
-	if len(path) > 0 {
-		config, err = getConfigFromFile(path)
-		if err == nil {
-			return &configFile{config, path}, nil
-		} else {
-			glog.V(4).Infof(err.Error())
-		}
-	}
-
-	// .kubeconfig in the local directory
-	path := ".kubeconfig"
-	config, err := getConfigFromFile(path)
-	if err == nil {
-		return &configFile{config, path}, nil
-	} else {
-		glog.V(4).Infof(err.Error())
-	}
-
-	// ~/.kube/.kubeconfig
-	path = os.Getenv("HOME") + "/.kube/.kubeconfig"
-	config, err = getConfigFromFile(path)
-	if err == nil {
-		return &configFile{config, path}, nil
-	} else {
-		glog.V(4).Infof(err.Error())
-	}
-
-	return nil, fmt.Errorf("Config file not found in the default locations.")
-}
-
-func getConfigFromFile(filename string) (*clientcmdapi.Config, error) {
-	var err error
-	config, err := clientcmd.LoadFromFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	return config, nil
-}
-
-func getUniqueName(basename string, existingNames *util.StringSet) string {
-	if !existingNames.Has(basename) {
-		return basename
-	}
-
-	for i := 0; i < 100; i++ {
-		trialName := fmt.Sprintf("%v-%d", basename, i)
-		if !existingNames.Has(trialName) {
-			return trialName
-		}
-	}
-
-	return string(util.NewUUID())
 }
