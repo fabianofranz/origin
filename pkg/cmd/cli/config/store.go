@@ -132,11 +132,16 @@ func getConfigFromFile(filename string) (*clientcmdapi.Config, error) {
 }
 
 func tryToLoad(path string, providerEngine string, providerLocation string) (*ConfigFromFile, error) {
-	config, err := getConfigFromFile(path)
-	if err == nil {
-		return &ConfigFromFile{config, path, providerEngine, providerLocation}, nil
-	} else {
-		glog.V(4).Infof(err.Error())
-		return nil, fmt.Errorf("Config file not found in %v.", path)
+	if len(path) > 0 {
+		config, err := getConfigFromFile(path)
+		if err == nil {
+			return &ConfigFromFile{config, path, providerEngine, providerLocation}, nil
+		} else {
+			glog.V(5).Infof("Unable to load config file for %v:%v: %v", providerEngine, providerLocation, err.Error())
+			return nil, fmt.Errorf("Config file not found in %v", path)
+		}
 	}
+	err := fmt.Errorf("Path for %v:%v was empty", providerEngine, providerLocation)
+	glog.V(5).Infof(err.Error())
+	return nil, err
 }
