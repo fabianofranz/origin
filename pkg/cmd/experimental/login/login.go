@@ -6,10 +6,8 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 
 	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
-	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd"
 	kubecmd "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd"
 
 	"github.com/openshift/origin/pkg/client"
@@ -98,6 +96,7 @@ prompt for user input if not provided.
 						glog.Fatalf("%v\n", err)
 					}
 				}
+
 			}
 		},
 	}
@@ -120,20 +119,4 @@ func whoami(clientCfg *kclient.Config) (string, error) {
 	}
 
 	return me.FullName, nil
-}
-
-// Copy of kubectl/cmd/DefaultClientConfig, using NewNonInteractiveDeferredLoadingClientConfig
-// TODO find and merge duplicates, this is also in other places
-func defaultClientConfig(flags *pflag.FlagSet) clientcmd.ClientConfig {
-	loadingRules := clientcmd.NewClientConfigLoadingRules()
-	loadingRules.EnvVarPath = os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
-	flags.StringVar(&loadingRules.CommandLinePath, "kubeconfig", "", "Path to the kubeconfig file to use for CLI requests.")
-
-	overrides := &clientcmd.ConfigOverrides{}
-	overrideFlags := clientcmd.RecommendedConfigOverrideFlags("")
-	overrideFlags.ContextOverrideFlags.NamespaceShort = "n"
-	clientcmd.BindOverrideFlags(overrides, flags, overrideFlags)
-	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)
-
-	return clientConfig
 }

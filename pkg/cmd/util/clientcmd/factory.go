@@ -2,6 +2,7 @@ package clientcmd
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api"
@@ -67,45 +68,39 @@ func NewFactory(clientConfig clientcmd.ClientConfig) *Factory {
 	}
 
 	// Save original RESTClient function
-	kRESTClientFunc := w.Factory.RESTClient
 	w.RESTClient = func(cmd *cobra.Command, mapping *meta.RESTMapping) (resource.RESTClient, error) {
-		if latest.OriginKind(mapping.Kind, mapping.APIVersion) {
-			cfg, err := w.OpenShiftClientConfig.ClientConfig()
-			if err != nil {
-				return nil, fmt.Errorf("unable to find client config %s: %v", mapping.Kind, err)
-			}
-			cli, err := client.New(cfg)
-			if err != nil {
-				return nil, fmt.Errorf("unable to create client %s: %v", mapping.Kind, err)
-			}
-			return cli.RESTClient, nil
+		oClient, kClient, err := w.Clients(cmd)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create client %s: %v", mapping.Kind, err)
 		}
-		return kRESTClientFunc(cmd, mapping)
+
+		if latest.OriginKind(mapping.Kind, mapping.APIVersion) {
+			return oClient.RESTClient, nil
+		} else {
+			return kClient.RESTClient, nil
+		}
 	}
 
 	// Save original Describer function
-	kDescriberFunc := w.Factory.Describer
 	w.Describer = func(cmd *cobra.Command, mapping *meta.RESTMapping) (kubectl.Describer, error) {
+		oClient, kClient, err := w.Clients(cmd)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create client %s: %v", mapping.Kind, err)
+		}
+
 		if latest.OriginKind(mapping.Kind, mapping.APIVersion) {
-			cfg, err := w.OpenShiftClientConfig.ClientConfig()
-			if err != nil {
-				return nil, fmt.Errorf("unable to describe %s: %v", mapping.Kind, err)
+			describer, ok := describe.DescriberFor(mapping.Kind, oClient, kClient, "")
+			if !ok {
+				return nil, fmt.Errorf("no description has been implemented for %q", mapping.Kind)
 			}
-			cli, err := client.New(cfg)
-			if err != nil {
-				return nil, fmt.Errorf("unable to describe %s: %v", mapping.Kind, err)
-			}
-			kubeClient, err := kclient.New(cfg)
-			if err != nil {
-				return nil, fmt.Errorf("unable to describe %s: %v", mapping.Kind, err)
-			}
-			describer, ok := describe.DescriberFor(mapping.Kind, cli, kubeClient, "")
+			return describer, nil
+		} else {
+			describer, ok := kubectl.DescriberFor(mapping.Kind, kClient)
 			if !ok {
 				return nil, fmt.Errorf("no description has been implemented for %q", mapping.Kind)
 			}
 			return describer, nil
 		}
-		return kDescriberFunc(cmd, mapping)
 	}
 
 	w.Printer = func(cmd *cobra.Command, mapping *meta.RESTMapping, noHeaders bool) (kubectl.ResourcePrinter, error) {
@@ -117,19 +112,32 @@ func NewFactory(clientConfig clientcmd.ClientConfig) *Factory {
 
 // Clients returns an OpenShift and Kubernetes client.
 func (f *Factory) Clients(cmd *cobra.Command) (*client.Client, *kclient.Client, error) {
-	os, err := f.OpenShiftClientConfig.ClientConfig()
+	cfg, err := f.OpenShiftClientConfig.ClientConfig()
 	if err != nil {
 		return nil, nil, err
 	}
-	oc, err := client.New(os)
+
+	transport, err := kclient.TransportFor(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
-	kc, err := f.Client(cmd)
+	httpClient := &http.Client{
+		Transport: transport,
+	}
+
+	oClient, err := client.New(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
-	return oc, kc, nil
+	kClient, err := kclient.New(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	oClient.Client = &statusHandlerClient{httpClient}
+	kClient.Client = &statusHandlerClient{httpClient}
+
+	return oClient, kClient, nil
 }
 
 // ShortcutExpander is a RESTMapper that can be used for OpenShift resources.
