@@ -89,8 +89,9 @@ func (o *viewOptions) getStartingConfig() (*clientcmdapi.Config, string, error) 
 	switch {
 	case o.merge:
 		loadingRules := clientcmd.NewClientConfigLoadingRules()
-		loadingRules.EnvVarPath = os.Getenv("KUBECONFIG")
-		loadingRules.CommandLinePath = o.pathOptions.specifiedFile
+		defaultLoadingRule := loadingRules.Default()
+		defaultLoadingRule.EnvVarPath = os.Getenv("KUBECONFIG")
+		defaultLoadingRule.CommandLinePath = o.pathOptions.specifiedFile
 
 		overrides := &clientcmd.ConfigOverrides{}
 		clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)

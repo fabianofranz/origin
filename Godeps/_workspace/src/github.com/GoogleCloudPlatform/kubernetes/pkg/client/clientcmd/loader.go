@@ -35,8 +35,13 @@ const (
 	RecommendedConfigPathEnvVar = "KUBECONFIG"
 )
 
-// ClientConfigLoadingRules is a struct that calls our specific locations that are used for merging together a Config
+// ClientConfigLoadingRules is a collection that allows multiple sets of loading rules
 type ClientConfigLoadingRules struct {
+	Rules []ClientConfigLoadingRule
+}
+
+// ClientConfigLoadingRule is a struct that calls our specific locations that are used for merging together a Config
+type ClientConfigLoadingRule struct {
 	CommandLinePath      string
 	EnvVarPath           string
 	CurrentDirectoryPath string
@@ -47,9 +52,41 @@ type ClientConfigLoadingRules struct {
 // use this constructor
 func NewClientConfigLoadingRules() *ClientConfigLoadingRules {
 	return &ClientConfigLoadingRules{
-		CurrentDirectoryPath: ".kubeconfig",
-		HomeDirectoryPath:    os.Getenv("HOME") + "/.kube/.kubeconfig",
+		Rules: []ClientConfigLoadingRule{
+			ClientConfigLoadingRule{
+				CurrentDirectoryPath: ".kubeconfig",
+				HomeDirectoryPath:    os.Getenv("HOME") + "/.kube/.kubeconfig",
+			},
+		},
 	}
+}
+
+// Returns the first loading rule, most use cases
+func (rules *ClientConfigLoadingRules) Default() *ClientConfigLoadingRule {
+	if len(rules.Rules) > 0 {
+		return &rules.Rules[0]
+	}
+	return nil
+}
+
+func (rules *ClientConfigLoadingRules) AppendRule(commandLinePath string, envVarPath string, currentDirectoryPath string, homeDirectoryPath string) {
+	rules.Rules = append(rules.Rules, ClientConfigLoadingRule{
+		CommandLinePath:      commandLinePath,
+		EnvVarPath:           envVarPath,
+		CurrentDirectoryPath: currentDirectoryPath,
+		HomeDirectoryPath:    homeDirectoryPath,
+	})
+}
+
+func (rules *ClientConfigLoadingRules) PrependRule(commandLinePath string, envVarPath string, currentDirectoryPath string, homeDirectoryPath string) {
+	rules.Rules = append([]ClientConfigLoadingRule{
+		ClientConfigLoadingRule{
+			CommandLinePath:      commandLinePath,
+			EnvVarPath:           envVarPath,
+			CurrentDirectoryPath: currentDirectoryPath,
+			HomeDirectoryPath:    homeDirectoryPath,
+		},
+	}, rules.Rules...)
 }
 
 // Load takes the loading rules and merges together a Config object based on following order.
@@ -77,7 +114,13 @@ func (rules *ClientConfigLoadingRules) Load() (*clientcmdapi.Config, error) {
 		}
 	}
 
-	kubeConfigFiles := []string{rules.CommandLinePath, rules.EnvVarPath, rules.CurrentDirectoryPath, rules.HomeDirectoryPath}
+	kubeConfigFiles := []string{}
+	for _, rule := range rules.Rules {
+		kubeConfigFiles = append(kubeConfigFiles, rule.CommandLinePath)
+		kubeConfigFiles = append(kubeConfigFiles, rule.EnvVarPath)
+		kubeConfigFiles = append(kubeConfigFiles, rule.CurrentDirectoryPath)
+		kubeConfigFiles = append(kubeConfigFiles, rule.HomeDirectoryPath)
+	}
 
 	// first merge all of our maps
 	mapConfig := clientcmdapi.NewConfig()
