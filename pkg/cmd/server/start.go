@@ -11,12 +11,13 @@ import (
 
 	kapi "github.com/GoogleCloudPlatform/kubernetes/pkg/api"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/capabilities"
+	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/record"
 	"github.com/golang/glog"
-
 	"github.com/openshift/origin/pkg/cmd/server/etcd"
 	"github.com/openshift/origin/pkg/cmd/server/kubernetes"
 	"github.com/openshift/origin/pkg/cmd/server/origin"
+	"github.com/spf13/pflag"
 
 	// Admission control plugins from upstream Kubernetes
 	_ "github.com/GoogleCloudPlatform/kubernetes/plugin/pkg/admission/admit"
@@ -104,6 +105,21 @@ func (cfg Config) startMaster() error {
 	openshiftConfig.RunProjectAuthorizationCache()
 
 	return nil
+}
+
+// Copy of kubectl/cmd/DefaultClientConfig, using NewNonInteractiveDeferredLoadingClientConfig
+// TODO: there should be two client configs, one for OpenShift, and one for Kubernetes
+func defaultClientConfig(flags *pflag.FlagSet) clientcmd.ClientConfig {
+	clientcmd.DefaultCluster.Server = "https://localhost:8443"
+	loadingRules := clientcmd.NewClientConfigLoadingRules()
+	defaultLoadingRule := loadingRules.Default()
+	defaultLoadingRule.EnvVarPath = os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
+	flags.StringVar(&defaultLoadingRule.CommandLinePath, "kubeconfig", "", "Path to the kubeconfig file to use for connecting to the master.")
+
+	overrides := &clientcmd.ConfigOverrides{}
+	//clientcmd.BindOverrideFlags(overrides, flags, clientcmd.RecommendedConfigOverrideFlags(""))
+	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)
+	return clientConfig
 }
 
 // run launches the appropriate startup modes or returns an error.
