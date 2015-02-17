@@ -6,7 +6,7 @@ import (
 
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd"
 	clientcmdapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api"
-	kubecmd "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd"
+	cmdutil "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd/util"
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 )
@@ -65,7 +65,7 @@ func GetConfigFromDefaultLocations(cmd *cobra.Command) (*ConfigFromFile, error) 
 	// TODO should we have an openshift flag (--openshiftconfig)?
 
 	// --kubeconfig flag, if provided will only try this one
-	path := kubecmd.GetFlagString(cmd, KubeConfigFlagName)
+	path := cmdutil.GetFlagString(cmd, KubeConfigFlagName)
 	if len(path) > 0 {
 		config, err := tryToLoad(path, fromKube, fromFlag)
 		if err == nil {

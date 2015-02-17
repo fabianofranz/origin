@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/cobra"
 
 	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
-	kubecmd "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd"
 
+	kcmdutil "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd/util"
 	"github.com/openshift/origin/pkg/client"
 	"github.com/openshift/origin/pkg/cmd/cli/config"
 	osclientcmd "github.com/openshift/origin/pkg/cmd/util/clientcmd"
@@ -31,8 +31,8 @@ prompt for user input if not provided.
 				glog.Fatalf("%v\n", err)
 			}
 
-			usernameFlag := kubecmd.GetFlagString(cmd, "username")
-			passwordFlag := kubecmd.GetFlagString(cmd, "password")
+			usernameFlag := kcmdutil.GetFlagString(cmd, "username")
+			passwordFlag := kcmdutil.GetFlagString(cmd, "password")
 
 			usernameFlagProvided := len(usernameFlag) > 0
 
