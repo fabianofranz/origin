@@ -3,11 +3,13 @@ package login
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
 	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
+	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
 
 	kcmdutil "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd/util"
 	"github.com/openshift/origin/pkg/client"
@@ -96,7 +98,35 @@ prompt for user input if not provided.
 						glog.Fatalf("%v\n", err)
 					}
 				}
+			}
 
+			// select a project to use
+			oClient, _, err := f.Clients(cmd)
+			if err != nil {
+				glog.Fatalf("%v\n", err)
+			}
+
+			// TODO must properly handle policies (projects an user belongs to)
+			projects, err := oClient.Projects().List(labels.Everything(), labels.Everything())
+			if err != nil {
+				glog.Fatalf("%v\n", err)
+			}
+
+			if size := len(projects.Items); size > 0 {
+				if size > 1 {
+					projectsNames := make([]string, size)
+					for i, project := range projects.Items {
+						projectsNames[i] = project.Name
+					}
+					fmt.Printf("Your projects are: %v. You can switch between them using TODO.\n", strings.Join(projectsNames, ", ")) // TODO switch projects
+				}
+				current, err := f.OpenShiftClientConfig.Namespace()
+				if err != nil {
+					glog.Fatalf("%v\n", err)
+				}
+				fmt.Printf("Now using project '%v'\n", current)
+			} else {
+				// TODO handle no projects
 			}
 		},
 	}
