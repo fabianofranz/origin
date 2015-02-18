@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	kerrors "github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
+	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
 
 	"github.com/openshift/origin/pkg/client"
@@ -18,7 +19,9 @@ import (
 )
 
 type loginOptions struct {
-	cmd *cobra.Command
+	cmd         *cobra.Command
+	configStore *config.ConfigFromFile
+	oClient     *client.Client
 
 	username string
 	password string
@@ -31,9 +34,6 @@ type loginOptions struct {
 	serverProvided   bool
 	projectProvided  bool
 	contextProvided  bool
-
-	configStore *config.ConfigFromFile
-	oClient     *client.Client
 }
 
 func NewCmdLogin(f *osclientcmd.Factory, parentName, name string) *cobra.Command {
@@ -58,7 +58,7 @@ prompt for user input if not provided.
 				glog.Fatalf("%v\n", err)
 			}
 
-			err = options.fill(cmd, oClient)
+			err = options.fill(cmd, clientCfg, oClient)
 			if err != nil {
 				glog.Fatalf("%v\n", err)
 			}
@@ -66,7 +66,7 @@ prompt for user input if not provided.
 			glog.V(4).Infof("Using config from %v\n", options.configStore.Path)
 
 			// check to see if we're already signed in. If --username, make sure we are signed in with it. If so, simply make sure that .kubeconfig has that information
-			if userFullName, err := whoami(oClient); err == nil && (!options.usernameProvided || (options.usernameProvided && options.username == userFullName)) {
+			if userFullName, err := whoami(clientCfg); err == nil && (!options.usernameProvided || (options.usernameProvided && options.username == userFullName)) {
 				if err := config.UpdateConfigFile(userFullName, clientCfg.BearerToken, f.OpenShiftClientConfig, options.configStore); err != nil {
 					glog.Fatalf("%v\n", err)
 				}
@@ -85,7 +85,7 @@ prompt for user input if not provided.
 							glog.V(5).Infof("Authentication exists for '%v', trying to use it...\n", options.username)
 
 							clientCfg.BearerToken = authInfo.Token
-							if userFullName, err := whoami(oClient); err == nil && userFullName == options.username {
+							if userFullName, err := whoami(clientCfg); err == nil && userFullName == options.username {
 								err = config.UpdateConfigFile(userFullName, authInfo.Token, f.OpenShiftClientConfig, options.configStore)
 								if err != nil {
 									glog.Fatalf("%v\n", err)
@@ -103,12 +103,11 @@ prompt for user input if not provided.
 				if requiresNewLogin {
 					clientCfg.BearerToken = ""
 					accessToken, err := tokencmd.RequestToken(clientCfg, os.Stdin, options.username, options.password)
-
 					if err != nil {
 						glog.Fatalf("%v\n", err)
 					}
 
-					if userFullName, err := whoami(oClient); err == nil {
+					if userFullName, err := whoami(clientCfg); err == nil {
 						err = config.UpdateConfigFile(userFullName, accessToken, f.OpenShiftClientConfig, options.configStore)
 						if err != nil {
 							glog.Fatalf("%v\n", err)
@@ -151,12 +150,17 @@ prompt for user input if not provided.
 	cmds.Flags().StringVarP(&options.password, "password", "p", "", "Password, will prompt if not provided")
 	cmds.Flags().StringVar(&options.project, "project", "", "If provided the client will switch to use the provided project after logging in")
 	// TODO should explicitly expose the flags below as local (currently global)
-	cmds.Flags().StringVar(&options.context, "context", "", "Use a specific config context to log in")
-	cmds.Flags().StringVar(&options.server, "server", "", "The address and port of the API server to log in to")
+	//cmds.Flags().StringVar(&options.context, "context", "", "Use a specific config context to log in")
+	//cmds.Flags().StringVar(&options.server, "server", "", "The address and port of the API server to log in to")
 	return cmds
 }
 
-func whoami(oClient *client.Client) (string, error) {
+func whoami(clientCfg *kclient.Config) (string, error) {
+	oClient, err := client.New(clientCfg)
+	if err != nil {
+		return "", err
+	}
+
 	me, err := oClient.Users().Get("~")
 	if err != nil {
 		return "", err
@@ -165,7 +169,7 @@ func whoami(oClient *client.Client) (string, error) {
 	return me.FullName, nil
 }
 
-func (o *loginOptions) fill(cmd *cobra.Command, oClient *client.Client) error {
+func (o *loginOptions) fill(cmd *cobra.Command, clientCfg *kclient.Config, oClient *client.Client) error {
 	o.cmd = cmd
 
 	o.usernameProvided = len(o.username) > 0
@@ -174,7 +178,7 @@ func (o *loginOptions) fill(cmd *cobra.Command, oClient *client.Client) error {
 	o.projectProvided = len(o.project) > 0
 	o.contextProvided = len(o.context) > 0
 
-	configStore, err := config.GetConfigFromDefaultLocations(cmd)
+	configStore, err := config.GetConfigFromDefaultLocations(clientCfg, cmd)
 	if err != nil {
 		return err
 	}
@@ -199,7 +203,7 @@ func (o *loginOptions) fill(cmd *cobra.Command, oClient *client.Client) error {
 			return fmt.Errorf("The 'context' flag cannot be used with 'project' since it already provides this information. You must either provide a context or project.")
 		}
 
-		// if context provided, take everything from it
+		// if context were provided, take everything from it
 		o.username = ctx.AuthInfo
 		o.password = ""
 		o.server = ctx.Cluster
@@ -212,8 +216,9 @@ func (o *loginOptions) fill(cmd *cobra.Command, oClient *client.Client) error {
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				return fmt.Errorf("Project '%s' not found\n", o.project)
+			} else {
+				return err
 			}
-			return err
 		}
 	}
 

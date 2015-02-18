@@ -15,10 +15,10 @@ import (
 // challengingClient conforms the kclient.HTTPClient interface.  It introspects responses for auth challenges and
 // tries to response to those challenges in order to get a token back.
 type challengingClient struct {
-	delegate        *http.Client
-	reader          io.Reader
-	defaultUsername string
-	defaultPassword string
+	delegate *http.Client
+	reader   io.Reader
+	Username string
+	Password string
 }
 
 const basicAuthPattern = `[\s]*Basic[\s]*realm="([\w]+)"`
@@ -34,23 +34,20 @@ func (client *challengingClient) Do(req *http.Request) (*http.Response, error) {
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		if wantsBasicAuth, realm := isBasicAuthChallenge(resp); wantsBasicAuth {
-			username := client.defaultUsername
-			password := client.defaultPassword
-
-			uDefaulted := len(username) > 0
-			pDefaulted := len(password) > 0
+			uDefaulted := len(client.Username) > 0
+			pDefaulted := len(client.Password) > 0
 
 			if !(uDefaulted && pDefaulted) {
 				fmt.Printf("Authenticate for \"%v\"\n", realm)
 				if !uDefaulted {
-					username = util.PromptForString(client.reader, "Username: ")
+					client.Username = util.PromptForString(client.reader, "Username: ")
 				}
 				if !pDefaulted {
-					password = util.PromptForPasswordString(client.reader, "Password: ")
+					client.Password = util.PromptForPasswordString(client.reader, "Password: ")
 				}
 			}
 
-			client.delegate.Transport = kclient.NewBasicAuthRoundTripper(username, password, client.delegate.Transport)
+			client.delegate.Transport = kclient.NewBasicAuthRoundTripper(client.Username, client.Password, client.delegate.Transport)
 			return client.Do(resp.Request)
 		}
 	}

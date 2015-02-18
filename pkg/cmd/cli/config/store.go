@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/GoogleCloudPlatform/kubernetes/pkg/client"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd"
 	clientcmdapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api"
 	cmdutil "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd/util"
@@ -61,7 +62,9 @@ func (c *ConfigFromFile) FromKube() bool {
 	return c.providerEngine == fromKube
 }
 
-func GetConfigFromDefaultLocations(cmd *cobra.Command) (*ConfigFromFile, error) {
+func GetConfigFromDefaultLocations(clientCfg *client.Config, cmd *cobra.Command) (*ConfigFromFile, error) {
+	configPathToCreateIfNotFound := fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDir, OpenShiftConfigFileName)
+
 	// --config flag, if provided will only try this one
 	path := cmdutil.GetFlagString(cmd, OpenShiftConfigFlagName)
 	if len(path) > 0 {
@@ -88,7 +91,7 @@ func GetConfigFromDefaultLocations(cmd *cobra.Command) (*ConfigFromFile, error) 
 	}
 
 	// try ~/.openshift/.openshiftconfig, if not move on
-	path = fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDir, OpenShiftConfigFileName)
+	path = configPathToCreateIfNotFound
 	config, err = tryToLoad(path, fromOpenShift, fromHomeDir)
 	if err == nil {
 		return config, nil
@@ -115,9 +118,19 @@ func GetConfigFromDefaultLocations(cmd *cobra.Command) (*ConfigFromFile, error) 
 		return config, nil
 	}
 
-	// TODO should handle this scenario. ask for server if not yet provided and save a config file
+	glog.V(3).Infof("Config file not found in any of the expected locations, a new config will be created: %v ", configPathToCreateIfNotFound)
+	newConfig := clientcmdapi.NewConfig()
 
-	return nil, fmt.Errorf("Config file not found in any of the default locations.")
+	if err = clientcmd.WriteToFile(*newConfig, configPathToCreateIfNotFound); err != nil {
+		return nil, err
+	}
+
+	config, err = tryToLoad(configPathToCreateIfNotFound, fromKube, fromHomeDir)
+	if err == nil {
+		return config, nil
+	} else {
+		return nil, fmt.Errorf("Config file not found in any of the default locations. Tried to create but failed with: %v", err)
+	}
 }
 
 func getConfigFromFile(filename string) (*clientcmdapi.Config, error) {

@@ -23,7 +23,7 @@ type tokenGetterInfo struct {
 
 // RequestToken uses the cmd arguments to locate an openshift oauth server and attempts to authenticate
 // it returns the access token if it gets one.  An error if it does not
-func RequestToken(clientCfg *kclient.Config, reader io.Reader, defaultUsername string, defaultPassword string) (string, error) {
+func RequestToken(clientCfg *kclient.Config, reader io.Reader, username string, password string) (string, error) {
 	tokenGetter := &tokenGetterInfo{}
 
 	osClient, err := client.New(clientCfg)
@@ -43,7 +43,8 @@ func RequestToken(clientCfg *kclient.Config, reader io.Reader, defaultUsername s
 		CheckRedirect: tokenGetter.checkRedirect,
 	}
 
-	osClient.Client = &challengingClient{httpClient, reader, defaultUsername, defaultPassword}
+	challengingClient := &challengingClient{httpClient, reader, username, password}
+	osClient.Client = challengingClient
 
 	result := osClient.Get().AbsPath("oauth", "authorize").Param("response_type", "token").Param("client_id", "openshift-challenging-client").Do()
 
