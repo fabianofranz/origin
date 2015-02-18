@@ -10,7 +10,7 @@ import (
 func NewOpenShiftClientConfigLoadingRules() *clientcmd.ClientConfigLoadingRules {
 	loadingRules := clientcmd.NewClientConfigLoadingRules()
 
-	commandLinePath := "" // we don't have a --openshiftconfig
+	commandLinePath := OpenShiftConfigFlagName
 	envVarPath := OpenShiftConfigPathEnvVar
 	currentDirectoryPath := OpenShiftConfigFileName
 	homeDirectoryPath := fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDir, OpenShiftConfigFileName)

@@ -13,11 +13,11 @@ import (
 
 const (
 	OpenShiftConfigPathEnvVar = "OPENSHIFTCONFIG"
+	OpenShiftConfigFlagName   = "config"
 	OpenShiftConfigFileName   = ".openshiftconfig"
 	OpenShiftConfigHomeDir    = ".openshift"
 
 	KubeConfigPathEnvVar = clientcmd.RecommendedConfigPathEnvVar
-	KubeConfigFlagName   = "kubeconfig"
 	KubeConfigFileName   = ".kubeconfig"
 	KubeConfigHomeDir    = ".kube"
 
@@ -62,12 +62,10 @@ func (c *ConfigFromFile) FromKube() bool {
 }
 
 func GetConfigFromDefaultLocations(cmd *cobra.Command) (*ConfigFromFile, error) {
-	// TODO should we have an openshift flag (--openshiftconfig)?
-
-	// --kubeconfig flag, if provided will only try this one
-	path := cmdutil.GetFlagString(cmd, KubeConfigFlagName)
+	// --config flag, if provided will only try this one
+	path := cmdutil.GetFlagString(cmd, OpenShiftConfigFlagName)
 	if len(path) > 0 {
-		config, err := tryToLoad(path, fromKube, fromFlag)
+		config, err := tryToLoad(path, fromOpenShift, fromFlag)
 		if err == nil {
 			return config, nil
 		} else {

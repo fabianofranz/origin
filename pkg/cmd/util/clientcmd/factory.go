@@ -43,12 +43,13 @@ func DefaultClientConfig(flags *pflag.FlagSet) clientcmd.ClientConfig {
 
 	defaultLoadingRule := loadingRules.Default()
 	defaultLoadingRule.EnvVarPath = os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
-	flags.StringVar(&defaultLoadingRule.CommandLinePath, "kubeconfig", "", "Path to the kubeconfig file to use for CLI requests.")
+	flags.StringVar(&defaultLoadingRule.CommandLinePath, "config", "", "Path to the config file to use for CLI requests.")
 
 	overrides := &clientcmd.ConfigOverrides{}
 	overrideFlags := clientcmd.RecommendedConfigOverrideFlags("")
 	overrideFlags.ContextOverrideFlags.NamespaceShort = "n"
 	clientcmd.BindOverrideFlags(overrides, flags, overrideFlags)
+
 	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)
 
 	return clientConfig
