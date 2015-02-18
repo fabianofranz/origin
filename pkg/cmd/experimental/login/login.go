@@ -8,6 +8,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
+	kerrors "github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
 	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
 
@@ -35,6 +36,16 @@ prompt for user input if not provided.
 
 			usernameFlag := kcmdutil.GetFlagString(cmd, "username")
 			passwordFlag := kcmdutil.GetFlagString(cmd, "password")
+			serverFlag := kcmdutil.GetFlagString(cmd, "server")
+			projectFlag := kcmdutil.GetFlagString(cmd, "project")
+			contextFlag := kcmdutil.GetFlagString(cmd, "context")
+
+			oClient, _, err := f.Clients(cmd)
+			if err != nil {
+				glog.Fatalf("%v\n", err)
+			}
+
+			validate(oClient, usernameFlag, passwordFlag, serverFlag, projectFlag, contextFlag)
 
 			usernameFlagProvided := len(usernameFlag) > 0
 
@@ -101,11 +112,6 @@ prompt for user input if not provided.
 			}
 
 			// select a project to use
-			oClient, _, err := f.Clients(cmd)
-			if err != nil {
-				glog.Fatalf("%v\n", err)
-			}
-
 			// TODO must properly handle policies (projects an user belongs to)
 			projects, err := oClient.Projects().List(labels.Everything(), labels.Everything())
 			if err != nil {
@@ -133,6 +139,8 @@ prompt for user input if not provided.
 
 	cmds.Flags().StringP("username", "u", "", "Username, will prompt if not provided")
 	cmds.Flags().StringP("password", "p", "", "Password, will prompt if not provided")
+	cmds.Flags().StringP("project", "", "", "If provided the client will switch to use the provided project after logging in")
+	cmds.Flags().StringP("context", "", "", "Use a config context to log in")
 	// TODO should explicitly expose --server (currently global)
 	return cmds
 }
@@ -149,4 +157,28 @@ func whoami(clientCfg *kclient.Config) (string, error) {
 	}
 
 	return me.FullName, nil
+}
+
+func validate(oClient *client.Client, username string, password string, server string, project string, context string) {
+	usernameProvided := len(username) > 0
+	passwordProvided := len(password) > 0
+	serverProvided := len(server) > 0
+	projectProvided := len(project) > 0
+	contextProvided := len(context) > 0
+
+	// flags are mutually exclusive
+	if contextProvided && (usernameProvided || passwordProvided || serverProvided) {
+		glog.Fatalf("The 'context' flag cannot be used with 'username', 'password' or 'server'. You must either provide a context or explicit login details.")
+	}
+
+	// project must exist if provided
+	if projectProvided {
+		_, err := oClient.Projects().Get(project)
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				glog.Fatalf("Project '%s' not found\n", project)
+			}
+			glog.Fatalf("%v\n", err)
+		}
+	}
 }
