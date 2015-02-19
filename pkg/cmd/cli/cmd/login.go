@@ -56,8 +56,6 @@ prompt for user input if not provided.
 			err = options.fill(cmd, clientCfg)
 			checkErr(err)
 
-			glog.V(4).Infof("Using config from %v\n", options.configStore.Path)
-
 			// check to see if we're already signed in. If --username, make sure we are signed in with it. If so, simply make sure that .kubeconfig has that information
 			if userFullName, err := whoami(clientCfg); err == nil && (!options.usernameProvided || (options.usernameProvided && options.username == userFullName)) {
 				err = config.UpdateConfigFile(userFullName, clientCfg.BearerToken, f.OpenShiftClientConfig, options.configStore)

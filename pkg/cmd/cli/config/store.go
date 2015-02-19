@@ -156,6 +156,7 @@ func tryToLoad(path string, providerEngine string, providerLocation string) (*Co
 	if len(path) > 0 {
 		config, err := getConfigFromFile(path)
 		if err == nil {
+			glog.V(4).Infof("Using config from %v", path)
 			return &ConfigStore{config, path, providerEngine, providerLocation}, nil
 		} else {
 			glog.V(5).Infof("Unable to load config file for %v:%v: %v", providerEngine, providerLocation, err.Error())

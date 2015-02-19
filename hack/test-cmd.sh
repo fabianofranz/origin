@@ -45,7 +45,8 @@ TEMP_DIR=${USE_TEMP:-$(mktemp -d /tmp/openshift-cmd.XXXX)}
 ETCD_DATA_DIR="${TEMP_DIR}/etcd"
 VOLUME_DIR="${TEMP_DIR}/volumes"
 CERT_DIR="${TEMP_DIR}/certs"
-mkdir -p "${ETCD_DATA_DIR}" "${VOLUME_DIR}" "${CERT_DIR}"
+CONFIG_DIR="${TEMP_DIR}/configs"
+mkdir -p "${ETCD_DATA_DIR}" "${VOLUME_DIR}" "${CERT_DIR}" "${CONFIG_DIR}"
 
 # handle profiling defaults
 profile="${OPENSHIFT_PROFILE-}"
@@ -86,9 +87,8 @@ wait_for_url "${API_SCHEME}://${API_HOST}:${API_PORT}/api/v1beta1/minions/127.0.
 # Set KUBERNETES_MASTER for osc
 export KUBERNETES_MASTER="${API_SCHEME}://${API_HOST}:${API_PORT}"
 if [[ "${API_SCHEME}" == "https" ]]; then
-	# Make osc use ${CERT_DIR}/admin/.kubeconfig, and ignore anything in the running user's $HOME dir
+	# ignore anything in the running user's $HOME dir
 	export HOME="${CERT_DIR}/admin"
-	export KUBECONFIG="${CERT_DIR}/admin/.kubeconfig"
 fi
 
 # profile the cli commands
@@ -97,6 +97,38 @@ export OPENSHIFT_PROFILE="${CLI_PROFILE-}"
 #
 # Begin tests
 #
+
+# test config files from the --config flag
+osc get services --config="${CERT_DIR}/admin/.kubeconfig"
+
+# test config files from env vars
+OPENSHIFTCONFIG="${CERT_DIR}/admin/.kubeconfig" osc get services
+KUBECONFIG="${CERT_DIR}/admin/.kubeconfig" osc get services
+
+# test config files in the current directory
+TEMP_PWD=`pwd` 
+pushd ${CONFIG_DIR} >/dev/null
+    cp ${CERT_DIR}/admin/.kubeconfig .openshiftconfig
+    if [[ "${API_SCHEME}" == "https" ]]; then
+        cp ${CERT_DIR}/admin/root.crt .
+        cp ${CERT_DIR}/admin/cert.crt .
+        cp ${CERT_DIR}/admin/key.key .
+    fi
+    ${TEMP_PWD}/${GO_OUT}/osc get services
+    mv .openshiftconfig .kubeconfig 
+    ${TEMP_PWD}/${GO_OUT}/osc get services
+popd 
+
+# test config files in the home directory
+mv ${CONFIG_DIR} ${HOME}/.kube
+osc get services
+mkdir -p ${HOME}/.config
+mv ${HOME}/.kube ${HOME}/.config/openshift
+mv ${HOME}/.config/openshift/.kubeconfig ${HOME}/.config/openshift/.config
+osc get services
+echo "config files: ok"
+
+# from this point every command will use config from the (temp) home directory
 
 osc get templates
 osc create -f examples/sample-app/application-template-dockerbuild.json
