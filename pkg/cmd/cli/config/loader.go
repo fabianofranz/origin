@@ -10,11 +10,10 @@ import (
 func NewOpenShiftClientConfigLoadingRules() *clientcmd.ClientConfigLoadingRules {
 	loadingRules := clientcmd.NewClientConfigLoadingRules()
 
-	commandLinePath := OpenShiftConfigFlagName
-	envVarPath := OpenShiftConfigPathEnvVar
+	envVarPath := os.Getenv(OpenShiftConfigPathEnvVar)
 	currentDirectoryPath := OpenShiftConfigFileName
 	homeDirectoryPath := fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDir, OpenShiftConfigFileName)
 
-	loadingRules.Add(commandLinePath, envVarPath, currentDirectoryPath, homeDirectoryPath)
+	loadingRules.Add("", envVarPath, currentDirectoryPath, homeDirectoryPath)
 	return loadingRules
 }

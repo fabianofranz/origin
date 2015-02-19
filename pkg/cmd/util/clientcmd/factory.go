@@ -3,7 +3,6 @@ package clientcmd
 import (
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/meta"
@@ -41,9 +40,7 @@ func New(flags *pflag.FlagSet) *Factory {
 func DefaultClientConfig(flags *pflag.FlagSet) clientcmd.ClientConfig {
 	loadingRules := config.NewOpenShiftClientConfigLoadingRules()
 
-	defaultLoadingRule := loadingRules.Default()
-	defaultLoadingRule.EnvVarPath = os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
-	flags.StringVar(&defaultLoadingRule.CommandLinePath, "config", "", "Path to the config file to use for CLI requests.")
+	flags.StringVar(&loadingRules.Default().CommandLinePath, "config", "", "Path to the config file to use for CLI requests.")
 
 	overrides := &clientcmd.ConfigOverrides{}
 	overrideFlags := clientcmd.RecommendedConfigOverrideFlags("")

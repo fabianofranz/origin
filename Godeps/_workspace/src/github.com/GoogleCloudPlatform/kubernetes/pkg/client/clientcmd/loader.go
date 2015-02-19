@@ -107,15 +107,15 @@ func (rules *ClientConfigLoadingRules) Load() (*clientcmdapi.Config, error) {
 
 	errlist := []error{}
 
-	// Make sure a file we were explicitly told to use exists
-	if len(rules.CommandLinePath) > 0 {
-		if _, err := os.Stat(rules.CommandLinePath); os.IsNotExist(err) {
-			errlist = append(errlist, fmt.Errorf("The config file %v does not exist", rules.CommandLinePath))
-		}
-	}
-
 	kubeConfigFiles := []string{}
 	for _, rule := range rules.Rules {
+		// Make sure a file we were explicitly told to use exists
+		if len(rule.CommandLinePath) > 0 {
+			if _, err := os.Stat(rule.CommandLinePath); os.IsNotExist(err) {
+				errlist = append(errlist, fmt.Errorf("The config file %v does not exist", rule.CommandLinePath))
+			}
+		}
+
 		kubeConfigFiles = append(kubeConfigFiles, rule.CommandLinePath)
 		kubeConfigFiles = append(kubeConfigFiles, rule.EnvVarPath)
 		kubeConfigFiles = append(kubeConfigFiles, rule.CurrentDirectoryPath)

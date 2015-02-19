@@ -1,8 +1,6 @@
 package util
 
 import (
-	"os"
-
 	"github.com/spf13/pflag"
 
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd"
@@ -13,9 +11,7 @@ import (
 func DefaultClientConfig(flags *pflag.FlagSet) clientcmd.ClientConfig {
 	loadingRules := config.NewOpenShiftClientConfigLoadingRules()
 
-	defaultLoadingRule := loadingRules.Default()
-	defaultLoadingRule.EnvVarPath = os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
-	flags.StringVar(&defaultLoadingRule.CommandLinePath, "config", "", "Path to the config file to use for CLI requests.")
+	flags.StringVar(&loadingRules.Default().CommandLinePath, "config", "", "Path to the config file to use for CLI requests.")
 
 	overrides := &clientcmd.ConfigOverrides{}
 	overrideFlags := clientcmd.RecommendedConfigOverrideFlags("")
