@@ -22,13 +22,13 @@ import (
 	"github.com/openshift/origin/pkg/cmd/cli/describe"
 )
 
-const defaultClusterURL = "https://localhost:8443"
+const DefaultClusterURL = "https://localhost:8443"
 
 // NewFactory creates a default Factory for commands that should share identical server
 // connection behavior. Most commands should use this method to get a factory.
 func New(flags *pflag.FlagSet) *Factory {
 	// Override global default to https and port 8443
-	clientcmd.DefaultCluster.Server = defaultClusterURL
+	clientcmd.DefaultCluster.Server = ""
 
 	// TODO: there should be two client configs, one for OpenShift, and one for Kubernetes
 	clientConfig := DefaultClientConfig(flags)

@@ -50,6 +50,7 @@ prompt for user input if not provided.
 `,
 		Run: func(cmd *cobra.Command, args []string) {
 			clientCfg, err := f.OpenShiftClientConfig.ClientConfig()
+			checkServerNotFound(err)
 			checkErr(err)
 
 			err = options.fill(cmd, clientCfg)
@@ -91,6 +92,7 @@ prompt for user input if not provided.
 				if requiresNewLogin {
 					clientCfg.BearerToken = ""
 					accessToken, err := tokencmd.RequestToken(clientCfg, os.Stdin, options.username, options.password)
+					checkServerCertificateAuthorityIssues(err)
 					checkErr(err)
 
 					if userFullName, err := whoami(clientCfg); err == nil {
@@ -208,4 +210,18 @@ func (o *loginOptions) fill(cmd *cobra.Command, clientCfg *kclient.Config) error
 	}
 
 	return nil
+}
+
+// TODO yikes refactor
+func checkServerNotFound(e error) {
+	if e != nil && strings.Contains(e.Error(), "no server found for") {
+		glog.Fatalf("You must provide a server to connect to. E.g.: 'osc login --server=https://localhost:8443'.")
+	}
+}
+
+// TODO yikes refactor
+func checkServerCertificateAuthorityIssues(e error) {
+	if e != nil && strings.Contains(e.Error(), "certificate signed by unknown authority") {
+		glog.Fatalf("The server uses a certificate signed by an unknown authority. You may need to use the --certificate-authority flag to provide the path to a certificate file for the certificate authority. Run 'osc options' for more information about flags related to certificates.")
+	}
 }
