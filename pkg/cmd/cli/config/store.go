@@ -13,10 +13,12 @@ import (
 )
 
 const (
-	OpenShiftConfigPathEnvVar = "OPENSHIFTCONFIG"
-	OpenShiftConfigFlagName   = "config"
-	OpenShiftConfigFileName   = ".openshiftconfig"
-	OpenShiftConfigHomeDir    = ".openshift"
+	OpenShiftConfigPathEnvVar      = "OPENSHIFTCONFIG"
+	OpenShiftConfigFlagName        = "config"
+	OpenShiftConfigFileName        = ".openshiftconfig"
+	OpenShiftConfigHomeDir         = ".config/openshift"
+	OpenShiftConfigHomeFileName    = ".config"
+	OpenShiftConfigHomeDirFileName = OpenShiftConfigHomeDir + "/" + OpenShiftConfigHomeFileName
 
 	KubeConfigPathEnvVar = clientcmd.RecommendedConfigPathEnvVar
 	KubeConfigFileName   = ".kubeconfig"
@@ -63,7 +65,6 @@ func (c *ConfigStore) FromKube() bool {
 }
 
 func GetConfigFromDefaultLocations(clientCfg *client.Config, cmd *cobra.Command) (*ConfigStore, error) {
-	configPathToCreateIfNotFound := fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDir, OpenShiftConfigFileName)
 
 	// --config flag, if provided will only try this one
 	path := cmdutil.GetFlagString(cmd, OpenShiftConfigFlagName)
@@ -90,8 +91,8 @@ func GetConfigFromDefaultLocations(clientCfg *client.Config, cmd *cobra.Command)
 		return config, nil
 	}
 
-	// try ~/.openshift/.openshiftconfig, if not move on
-	path = configPathToCreateIfNotFound
+	// try ~/.config/openshift/.config, if not move on
+	path = fmt.Sprintf("%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDirFileName)
 	config, err = tryToLoad(path, fromOpenShift, fromHomeDir)
 	if err == nil {
 		return config, nil
@@ -118,18 +119,27 @@ func GetConfigFromDefaultLocations(clientCfg *client.Config, cmd *cobra.Command)
 		return config, nil
 	}
 
+	configPathToCreateIfNotFound := fmt.Sprintf("%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDirFileName)
+
 	glog.V(3).Infof("Config file not found in any of the expected locations, a new config will be created: %v ", configPathToCreateIfNotFound)
 
 	newConfig := clientcmdapi.NewConfig()
+
+	if err = os.MkdirAll(fmt.Sprintf("%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDir), 0755); err != nil {
+		return nil, fmt.Errorf("Config file not found in any of the default locations. Tried to create but failed while creating directory %v: %v", OpenShiftConfigHomeDirFileName, err)
+	} else {
+		glog.V(5).Infof("Created directory %v", "~/"+OpenShiftConfigHomeDir)
+	}
+
 	if err = clientcmd.WriteToFile(*newConfig, configPathToCreateIfNotFound); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Config file not found in any of the default locations. Tried to create but failed with: %v", err)
 	}
 
 	config, err = tryToLoad(configPathToCreateIfNotFound, fromKube, fromHomeDir)
 	if err == nil {
 		return config, nil
 	} else {
-		return nil, fmt.Errorf("Config file not found in any of the default locations. Tried to create but failed with: %v", err)
+		return nil, err
 	}
 }
 
