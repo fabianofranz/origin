@@ -21,7 +21,7 @@ import (
 
 type loginOptions struct {
 	cmd         *cobra.Command
-	configStore *config.ConfigFromFile
+	configStore *config.ConfigStore
 	oClient     *client.Client
 
 	username string

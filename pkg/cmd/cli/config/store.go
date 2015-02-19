@@ -31,38 +31,38 @@ const (
 	fromOpenShift = "fromopenshift"
 )
 
-type ConfigFromFile struct {
+type ConfigStore struct {
 	Config           *clientcmdapi.Config
 	Path             string
 	providerEngine   string
 	providerLocation string
 }
 
-func (c *ConfigFromFile) FromFlag() bool {
+func (c *ConfigStore) FromFlag() bool {
 	return c.providerLocation == fromFlag
 }
 
-func (c *ConfigFromFile) FromEnvVar() bool {
+func (c *ConfigStore) FromEnvVar() bool {
 	return c.providerLocation == fromEnvVar
 }
 
-func (c *ConfigFromFile) FromLocalDir() bool {
+func (c *ConfigStore) FromLocalDir() bool {
 	return c.providerLocation == fromLocalDir
 }
 
-func (c *ConfigFromFile) FromHomeDir() bool {
+func (c *ConfigStore) FromHomeDir() bool {
 	return c.providerLocation == fromHomeDir
 }
 
-func (c *ConfigFromFile) FromOpenShift() bool {
+func (c *ConfigStore) FromOpenShift() bool {
 	return c.providerEngine == fromOpenShift
 }
 
-func (c *ConfigFromFile) FromKube() bool {
+func (c *ConfigStore) FromKube() bool {
 	return c.providerEngine == fromKube
 }
 
-func GetConfigFromDefaultLocations(clientCfg *client.Config, cmd *cobra.Command) (*ConfigFromFile, error) {
+func GetConfigFromDefaultLocations(clientCfg *client.Config, cmd *cobra.Command) (*ConfigStore, error) {
 	configPathToCreateIfNotFound := fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDir, OpenShiftConfigFileName)
 
 	// --config flag, if provided will only try this one
@@ -142,11 +142,11 @@ func getConfigFromFile(filename string) (*clientcmdapi.Config, error) {
 	return config, nil
 }
 
-func tryToLoad(path string, providerEngine string, providerLocation string) (*ConfigFromFile, error) {
+func tryToLoad(path string, providerEngine string, providerLocation string) (*ConfigStore, error) {
 	if len(path) > 0 {
 		config, err := getConfigFromFile(path)
 		if err == nil {
-			return &ConfigFromFile{config, path, providerEngine, providerLocation}, nil
+			return &ConfigStore{config, path, providerEngine, providerLocation}, nil
 		} else {
 			glog.V(5).Infof("Unable to load config file for %v:%v: %v", providerEngine, providerLocation, err.Error())
 			return nil, fmt.Errorf("Config file not found in %v", path)

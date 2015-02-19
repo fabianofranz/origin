@@ -8,7 +8,7 @@ import (
 	"github.com/openshift/origin/pkg/cmd/flagtypes"
 )
 
-func UpdateConfigFile(username, token string, clientCfg clientcmd.ClientConfig, configFile *ConfigFromFile) error {
+func UpdateConfigFile(username, token string, clientCfg clientcmd.ClientConfig, configStore *ConfigStore) error {
 	rawMergedConfig, err := clientCfg.RawConfig()
 	if err != nil {
 		return err
@@ -49,7 +49,7 @@ func UpdateConfigFile(username, token string, clientCfg clientcmd.ClientConfig, 
 
 	config.CurrentContext = contextName
 
-	configToModify := configFile.Config
+	configToModify := configStore.Config
 
 	configToWrite, err := MergeConfig(rawMergedConfig, *configToModify, *config)
 	if err != nil {
@@ -57,7 +57,7 @@ func UpdateConfigFile(username, token string, clientCfg clientcmd.ClientConfig, 
 	}
 
 	// TODO need to handle file not writable (probably create a copy)
-	err = clientcmd.WriteToFile(*configToWrite, configFile.Path)
+	err = clientcmd.WriteToFile(*configToWrite, configStore.Path)
 	if err != nil {
 		return err
 	}

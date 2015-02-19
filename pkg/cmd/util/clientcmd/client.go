@@ -9,9 +9,9 @@ import (
 const (
 	unauthorizedExitCode = 1
 
-	unauthorizedErrorMessage = `Your login session has expired. Use the following command to log in again:
+	unauthorizedErrorMessage = `Your session has expired. Use the following command to log in again:
 
-  openshift ex login [--username=<username>] [--password=<password>]
+  osc login [--username=<username>] [--password=<password>]
 `
 )
 
