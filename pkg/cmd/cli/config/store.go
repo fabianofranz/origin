@@ -119,8 +119,8 @@ func GetConfigFromDefaultLocations(clientCfg *client.Config, cmd *cobra.Command)
 	}
 
 	glog.V(3).Infof("Config file not found in any of the expected locations, a new config will be created: %v ", configPathToCreateIfNotFound)
-	newConfig := clientcmdapi.NewConfig()
 
+	newConfig := clientcmdapi.NewConfig()
 	if err = clientcmd.WriteToFile(*newConfig, configPathToCreateIfNotFound); err != nil {
 		return nil, err
 	}
