@@ -1,9 +1,11 @@
 package util
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/docker/docker/pkg/term"
 	"github.com/golang/glog"
@@ -48,7 +50,7 @@ func PromptForPasswordString(r io.Reader, format string, a ...interface{}) strin
 }
 
 func readInput(r io.Reader) string {
-	var result string
-	fmt.Fscan(r, &result)
-	return result
+	reader := bufio.NewReader(r)
+	result, _ := reader.ReadString('\n')
+	return strings.TrimSuffix(result, "\n")
 }
