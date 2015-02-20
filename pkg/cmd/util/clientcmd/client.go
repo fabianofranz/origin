@@ -22,11 +22,14 @@ type statusHandlerClient struct {
 func (client *statusHandlerClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := client.delegate.Do(req)
 	if err != nil {
+		err = DecorateErrors(err)
 		return nil, err
 	}
+
 	if resp.StatusCode == http.StatusUnauthorized {
 		fmt.Print(unauthorizedErrorMessage)
 		os.Exit(unauthorizedExitCode)
 	}
+
 	return resp, err
 }

@@ -44,13 +44,19 @@ func PromptForPasswordString(r io.Reader, format string, a ...interface{}) strin
 			return PromptForString(r, format, a...)
 		}
 	} else {
-		glog.V(3).Infof("Unable to use a TTY")
 		return PromptForString(r, format, a...)
 	}
 }
 
 func readInput(r io.Reader) string {
-	reader := bufio.NewReader(r)
-	result, _ := reader.ReadString('\n')
-	return strings.TrimSuffix(result, "\n")
+	if file, ok := r.(*os.File); ok && term.IsTerminal(file.Fd()) {
+		reader := bufio.NewReader(r)
+		result, _ := reader.ReadString('\n')
+		return strings.TrimSuffix(result, "\n")
+	} else {
+		glog.V(3).Infof("Unable to use a TTY")
+		var result string
+		fmt.Fscan(r, &result)
+		return result
+	}
 }

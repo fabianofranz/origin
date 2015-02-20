@@ -10,6 +10,7 @@ import (
 	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
 
 	"github.com/openshift/origin/pkg/cmd/util"
+	"github.com/openshift/origin/pkg/cmd/util/clientcmd"
 )
 
 // challengingClient conforms the kclient.HTTPClient interface.  It introspects responses for auth challenges and
@@ -29,6 +30,7 @@ var basicAuthRegex = regexp.MustCompile(basicAuthPattern)
 func (client *challengingClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := client.delegate.Do(req)
 	if err != nil {
+		err = clientcmd.DecorateErrors(err)
 		return nil, err
 	}
 

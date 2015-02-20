@@ -2,14 +2,12 @@ package tokencmd
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"regexp"
 
 	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
 
-	"github.com/openshift/origin/pkg/auth/server/tokenrequest"
 	"github.com/openshift/origin/pkg/client"
 )
 
@@ -49,13 +47,7 @@ func RequestToken(clientCfg *kclient.Config, reader io.Reader, username string, 
 	result := osClient.Get().AbsPath("oauth", "authorize").Param("response_type", "token").Param("client_id", "openshift-challenging-client").Do()
 
 	if len(tokenGetter.accessToken) == 0 {
-		errorMessage := ""
-		if result.Error() != nil {
-			errorMessage += fmt.Sprintf("Error making server request: %v. ", result.Error())
-		}
-		requestTokenURL := clientCfg.Host + "/oauth" /* clean up after auth.go dies */ + tokenrequest.RequestTokenEndpoint
-		errorMessage += "Unable to get token.  Try visiting " + requestTokenURL + " for a new token."
-		return "", errors.New(errorMessage)
+		return "", result.Error()
 	}
 
 	clientCfg.BearerToken = tokenGetter.accessToken

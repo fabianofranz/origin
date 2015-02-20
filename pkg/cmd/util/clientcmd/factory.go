@@ -8,6 +8,7 @@ import (
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/meta"
 	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd"
+	clientcmdapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl"
 	kubecmd "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/resource"
@@ -33,6 +34,7 @@ func New(flags *pflag.FlagSet) *Factory {
 	clientConfig := DefaultClientConfig(flags)
 	f := NewFactory(clientConfig)
 	f.BindFlags(flags)
+
 	return f
 }
 
@@ -55,20 +57,42 @@ func DefaultClientConfig(flags *pflag.FlagSet) clientcmd.ClientConfig {
 // Factory provides common options for OpenShift commands
 type Factory struct {
 	*kubecmd.Factory
-	OpenShiftClientConfig clientcmd.ClientConfig
+	OpenShiftClientConfig ClientConfig
+}
+
+// intercept errors that need special treatment for end-users (e.g. no config file present)
+type ClientConfig struct {
+	KClientConfig clientcmd.ClientConfig
+}
+
+func (cfg *ClientConfig) ClientConfig() (*kclient.Config, error) {
+	c, err := cfg.KClientConfig.ClientConfig()
+	err = DecorateErrors(err)
+	return c, err
+}
+
+func (cfg *ClientConfig) RawConfig() (clientcmdapi.Config, error) {
+	c, err := cfg.KClientConfig.RawConfig()
+	err = DecorateErrors(err)
+	return c, err
+}
+
+func (cfg *ClientConfig) Namespace() (string, error) {
+	n, err := cfg.KClientConfig.Namespace()
+	err = DecorateErrors(err)
+	return n, err
 }
 
 // NewFactory creates an object that holds common methods across all OpenShift commands
 func NewFactory(clientConfig clientcmd.ClientConfig) *Factory {
 	mapper := ShortcutExpander{kubectl.ShortcutExpander{latest.RESTMapper}}
 
-	w := &Factory{kubecmd.NewFactory(clientConfig), clientConfig}
+	w := &Factory{kubecmd.NewFactory(clientConfig), ClientConfig{clientConfig}}
 
 	w.Object = func(cmd *cobra.Command) (meta.RESTMapper, runtime.ObjectTyper) {
 		return mapper, api.Scheme
 	}
 
-	// Save original RESTClient function
 	w.RESTClient = func(cmd *cobra.Command, mapping *meta.RESTMapping) (resource.RESTClient, error) {
 		oClient, kClient, err := w.Clients(cmd)
 		if err != nil {
@@ -82,7 +106,6 @@ func NewFactory(clientConfig clientcmd.ClientConfig) *Factory {
 		}
 	}
 
-	// Save original Describer function
 	w.Describer = func(cmd *cobra.Command, mapping *meta.RESTMapping) (kubectl.Describer, error) {
 		oClient, kClient, err := w.Clients(cmd)
 		if err != nil {
@@ -106,6 +129,10 @@ func NewFactory(clientConfig clientcmd.ClientConfig) *Factory {
 
 	w.Printer = func(cmd *cobra.Command, mapping *meta.RESTMapping, noHeaders bool) (kubectl.ResourcePrinter, error) {
 		return describe.NewHumanReadablePrinter(noHeaders), nil
+	}
+
+	w.DefaultNamespace = func(cmd *cobra.Command) (string, error) {
+		return w.OpenShiftClientConfig.Namespace()
 	}
 
 	return w

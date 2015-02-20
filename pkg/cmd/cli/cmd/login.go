@@ -15,6 +15,7 @@ import (
 
 	"github.com/openshift/origin/pkg/client"
 	"github.com/openshift/origin/pkg/cmd/cli/config"
+	"github.com/openshift/origin/pkg/cmd/util"
 	osclientcmd "github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/cmd/util/tokencmd"
 )
@@ -50,7 +51,21 @@ prompt for user input if not provided.
 `,
 		Run: func(cmd *cobra.Command, args []string) {
 			clientCfg, err := f.OpenShiftClientConfig.ClientConfig()
-			checkServerNotFound(err)
+			if isServerNotFound(err) {
+				server := util.PromptForString(os.Stdin, "OpenShift is not configured. Please provide the server URL or hit <enter> to use '%v': ", osclientcmd.DefaultClusterURL)
+				if len(server) == 0 {
+					server = osclientcmd.DefaultClusterURL
+				}
+				serverFlag := cmd.Flags().Lookup("server")
+				if serverFlag != nil {
+					serverFlag.Value.Set(server)
+					if err := cmd.Execute(); err != nil {
+						os.Exit(1)
+					} else {
+						os.Exit(0)
+					}
+				}
+			}
 			checkErr(err)
 
 			err = options.fill(cmd, clientCfg)
@@ -58,7 +73,7 @@ prompt for user input if not provided.
 
 			// check to see if we're already signed in. If --username, make sure we are signed in with it. If so, simply make sure that .kubeconfig has that information
 			if userFullName, err := whoami(clientCfg); err == nil && (!options.usernameProvided || (options.usernameProvided && options.username == userFullName)) {
-				err = config.UpdateConfigFile(userFullName, clientCfg.BearerToken, f.OpenShiftClientConfig, options.configStore)
+				err = config.UpdateConfigFile(userFullName, clientCfg.BearerToken, f.OpenShiftClientConfig.KClientConfig, options.configStore)
 				checkErr(err)
 				fmt.Printf("Already logged into %v as '%v'\n", clientCfg.Host, userFullName)
 
@@ -76,7 +91,7 @@ prompt for user input if not provided.
 
 							clientCfg.BearerToken = authInfo.Token
 							if userFullName, err := whoami(clientCfg); err == nil && userFullName == options.username {
-								err = config.UpdateConfigFile(userFullName, authInfo.Token, f.OpenShiftClientConfig, options.configStore)
+								err = config.UpdateConfigFile(userFullName, authInfo.Token, f.OpenShiftClientConfig.KClientConfig, options.configStore)
 								checkErr(err)
 								requiresNewLogin = false
 								fmt.Printf("Already logged into %v as '%v'\n", clientCfg.Host, userFullName)
@@ -90,11 +105,10 @@ prompt for user input if not provided.
 				if requiresNewLogin {
 					clientCfg.BearerToken = ""
 					accessToken, err := tokencmd.RequestToken(clientCfg, os.Stdin, options.username, options.password)
-					checkServerCertificateAuthorityIssues(err)
 					checkErr(err)
 
 					if userFullName, err := whoami(clientCfg); err == nil {
-						err = config.UpdateConfigFile(userFullName, accessToken, f.OpenShiftClientConfig, options.configStore)
+						err = config.UpdateConfigFile(userFullName, accessToken, f.OpenShiftClientConfig.KClientConfig, options.configStore)
 						checkErr(err)
 						fmt.Printf("Logged into %v as %v\n", clientCfg.Host, userFullName)
 					} else {
@@ -210,16 +224,7 @@ func (o *loginOptions) fill(cmd *cobra.Command, clientCfg *kclient.Config) error
 	return nil
 }
 
-// TODO yikes refactor
-func checkServerNotFound(e error) {
-	if e != nil && strings.Contains(e.Error(), "no server found for") {
-		glog.Fatalf("You must provide a server to connect to. E.g.: 'osc login --server=https://localhost:8443'.")
-	}
-}
-
-// TODO yikes refactor
-func checkServerCertificateAuthorityIssues(e error) {
-	if e != nil && strings.Contains(e.Error(), "certificate signed by unknown authority") {
-		glog.Fatalf("The server uses a certificate signed by an unknown authority. You may need to use the --certificate-authority flag to provide the path to a certificate file for the certificate authority. Run 'osc options' for more information about flags related to certificates.")
-	}
+// TODO yikes refactor (probably use custom type for error)
+func isServerNotFound(e error) bool {
+	return e != nil && strings.Contains(e.Error(), "OpenShift is not configured")
 }
