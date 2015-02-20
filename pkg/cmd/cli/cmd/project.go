@@ -1,7 +1,8 @@
-package project
+package cmd
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
 	kclientcmd "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd"
@@ -11,9 +12,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewCmdProject(f *clientcmd.Factory, parentName, name string) *cobra.Command {
+func NewCmdProject(f *clientcmd.Factory, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   name + " <project-name>",
+		Use:   "project <project-name>",
 		Short: "switch to another project",
 		Long:  `Switch to another project and set it in the config file`,
 		Run: func(cmd *cobra.Command, args []string) {

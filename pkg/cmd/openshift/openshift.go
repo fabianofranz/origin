@@ -118,7 +118,6 @@ func newExperimentalCommand(parentName, name string) *cobra.Command {
 
 	subName := fmt.Sprintf("%s %s", parentName, name)
 	experimental.AddCommand(project.NewCmdNewProject(f, subName, "new-project"))
-	experimental.AddCommand(project.NewCmdProject(f, subName, "project"))
 	experimental.AddCommand(config.NewCmdConfig(subName, "config"))
 	experimental.AddCommand(tokens.NewCmdTokens(f, subName, "tokens"))
 	experimental.AddCommand(policy.NewCommandPolicy(f, subName, "policy"))

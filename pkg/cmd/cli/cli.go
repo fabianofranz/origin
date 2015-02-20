@@ -80,6 +80,7 @@ func NewCommandCLI(name, fullName string) *cobra.Command {
 	cmds.AddCommand(f.NewCmdProxy(out))
 
 	cmds.AddCommand(kubecmd.NewCmdNamespace(out))
+	cmds.AddCommand(cmd.NewCmdProject(f, out))
 
 	// Origin build commands
 
