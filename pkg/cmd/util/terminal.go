@@ -48,6 +48,14 @@ func PromptForPasswordString(r io.Reader, format string, a ...interface{}) strin
 	}
 }
 
+func PromptForStringWithDefault(r io.Reader, def string, format string, a ...interface{}) string {
+	if s := PromptForString(r, format, a...); len(s) == 0 {
+		return def
+	} else {
+		return s
+	}
+}
+
 func readInput(r io.Reader) string {
 	if file, ok := r.(*os.File); ok && term.IsTerminal(file.Fd()) {
 		reader := bufio.NewReader(r)
