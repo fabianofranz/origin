@@ -135,8 +135,9 @@ mv ${HOME}/.kube ${HOME}/.config/openshift
 mv ${HOME}/.config/openshift/.kubeconfig ${HOME}/.config/openshift/.config
 osc get services
 echo "config files: ok"
+export OPENSHIFTCONFIG="${HOME}/.config/openshift/.config"
 
-# from this point every command will use config from the (temp) home directory
+# from this point every command will use config from the OPENSHIFTCONFIG env var
 
 osc get templates
 osc create -f examples/sample-app/application-template-dockerbuild.json
@@ -299,8 +300,8 @@ osc describe policybinding master -n ui-test-project | grep adduser
 echo "ui-project-commands: ok"
 
 [ ! "$(openshift ex router | grep 'does not exist')"]
-[ "$(openshift ex router -o yaml --credentials="${KUBECONFIG}" | grep 'openshift/origin-haproxy-')" ]
-openshift ex router --create --credentials="${KUBECONFIG}"
+[ "$(openshift ex router -o yaml --credentials="${OPENSHIFTCONFIG}" | grep 'openshift/origin-haproxy-')" ]
+openshift ex router --create --credentials="${OPENSHIFTCONFIG}"
 [ "$(openshift ex router | grep 'service exists')" ]
 echo "ex router: ok"
 
