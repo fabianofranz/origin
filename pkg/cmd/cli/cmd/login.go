@@ -19,6 +19,7 @@ import (
 	"github.com/openshift/origin/pkg/cmd/util"
 	osclientcmd "github.com/openshift/origin/pkg/cmd/util/clientcmd"
 	"github.com/openshift/origin/pkg/cmd/util/tokencmd"
+	userapi "github.com/openshift/origin/pkg/user/api"
 )
 
 type loginOptions struct {
@@ -39,7 +40,7 @@ func NewCmdLogin(f *osclientcmd.Factory, out io.Writer) *cobra.Command {
 
 Username and password can be provided through flags, the command will
 prompt for user input if not provided.
-`,
+`, // TODO better long desc
 		Run: func(cmd *cobra.Command, args []string) {
 			// fetch config and if a server were not provided, prompt for it
 			clientCfg, err := f.OpenShiftClientConfig.ClientConfig()
@@ -66,11 +67,11 @@ prompt for user input if not provided.
 			checkErr(options.validate(configStore, clientCfg))
 
 			// Check to see if we're already signed in (with the user provided by --username)
-			// If so, simply make sure that .kubeconfig has that information
-			if userFullName, err := whoami(clientCfg); err == nil && (!options.usernameProvided() || (options.usernameProvided() && options.username == userFullName)) {
-				err = config.UpdateConfigFile(userFullName, clientCfg.BearerToken, f.OpenShiftClientConfig.KClientConfig, configStore)
+			// If so, simply make sure that the config file has that information
+			if me, err := whoami(clientCfg); err == nil && (!options.usernameProvided() || (options.usernameProvided() && options.username == usernameFromUser(me))) {
+				err = config.UpdateConfigFile(me.FullName, clientCfg.BearerToken, f.OpenShiftClientConfig.KClientConfig, configStore)
 				checkErr(err)
-				fmt.Printf("Already logged into %v as '%v'\n", clientCfg.Host, userFullName)
+				fmt.Printf("Already logged into %v as '%v'\n", clientCfg.Host, me.FullName)
 
 			} else {
 				requiresNewLogin := true
@@ -86,11 +87,11 @@ prompt for user input if not provided.
 							glog.V(5).Infof("Authentication exists for '%v', trying to use it...\n", options.username)
 
 							clientCfg.BearerToken = authInfo.Token
-							if userFullName, err := whoami(clientCfg); err == nil && userFullName == options.username {
-								err = config.UpdateConfigFile(userFullName, authInfo.Token, f.OpenShiftClientConfig.KClientConfig, configStore)
+							if me, err := whoami(clientCfg); err == nil && usernameFromUser(me) == options.username {
+								err = config.UpdateConfigFile(me.FullName, authInfo.Token, f.OpenShiftClientConfig.KClientConfig, configStore)
 								checkErr(err)
 								requiresNewLogin = false
-								fmt.Printf("Already logged into %v as '%v'\n", clientCfg.Host, userFullName)
+								fmt.Printf("Already logged into %v as '%v'\n", clientCfg.Host, me.FullName)
 							} else {
 								glog.V(5).Infof("Token %v no longer valid for '%v', need to log in again\n", authInfo.Token, options.username)
 							}
@@ -104,10 +105,10 @@ prompt for user input if not provided.
 					accessToken, err := tokencmd.RequestToken(clientCfg, os.Stdin, options.username, options.password)
 					checkErr(err)
 
-					if userFullName, err := whoami(clientCfg); err == nil {
-						err = config.UpdateConfigFile(userFullName, accessToken, f.OpenShiftClientConfig.KClientConfig, configStore)
+					if me, err := whoami(clientCfg); err == nil {
+						err = config.UpdateConfigFile(me.FullName, accessToken, f.OpenShiftClientConfig.KClientConfig, configStore)
 						checkErr(err)
-						fmt.Printf("Logged into %v as %v\n", clientCfg.Host, userFullName)
+						fmt.Printf("Logged into %v as %v\n", clientCfg.Host, me.FullName)
 					} else {
 						glog.Fatalf("%v\n", err)
 					}
@@ -123,59 +124,64 @@ prompt for user input if not provided.
 			projects, err := oClient.Projects().List(labels.Everything(), labels.Everything())
 			checkErr(err)
 
-			if size := len(projects.Items); size > 0 {
+			projectsItems := projects.Items
+			projectsLength := len(projectsItems)
+
+			switch projectsLength {
+			case 0:
+				fmt.Printf("You don't have any project.")
+			case 1:
+				fmt.Printf("Using project '%v'\n", projectsItems[0].Name)
+			default:
+				projectsNames := make([]string, projectsLength)
+				for i, project := range projectsItems {
+					projectsNames[i] = project.Name
+				}
+				fmt.Printf("Your projects are: %v. You can switch between them at any time using 'osc project <project-name>'.\n", strings.Join(projectsNames, ", ")) // TODO parameterize cmd name
+
 				if options.projectProvided() {
-					currentCtx := configStore.Config.Contexts[configStore.Config.CurrentContext]
+					cfg := configStore.Config
+					currentCtx := cfg.Contexts[cfg.CurrentContext]
 					for _, project := range projects.Items {
 						if project.Name == options.project {
 							currentCtx.Namespace = project.Name
-							config := configStore.Config
-							config.Contexts[config.CurrentContext] = currentCtx
+							cfg.Contexts[cfg.CurrentContext] = currentCtx
 
-							if err = kclientcmd.WriteToFile(*configStore.Config, configStore.Path); err != nil {
+							if err = kclientcmd.WriteToFile(*cfg, configStore.Path); err != nil {
 								glog.Fatalf("Error saving config to file: %v", err)
 							}
 						}
 					}
-
+					current, err := f.OpenShiftClientConfig.Namespace()
+					checkErr(err)
+					fmt.Printf("Now using project '%v'\n", current)
 				}
-				if size > 1 {
-					projectsNames := make([]string, size)
-					for i, project := range projects.Items {
-						projectsNames[i] = project.Name
-					}
-					fmt.Printf("Your projects are: %v. You can switch between them at any time using 'osc project <project-name>'.\n", strings.Join(projectsNames, ", ")) // TODO switch projects TODO parameterize cmd name
-				}
-				current, err := f.OpenShiftClientConfig.Namespace()
-				checkErr(err)
-				fmt.Printf("Now using project '%v'\n", current)
-			} else {
-				// TODO handle no projects
 			}
+
 		},
 	}
 
 	cmds.Flags().StringVarP(&options.username, "username", "u", "", "Username, will prompt if not provided")
 	cmds.Flags().StringVarP(&options.password, "password", "p", "", "Password, will prompt if not provided")
 	cmds.Flags().StringVar(&options.project, "project", "", "If provided the client will switch to use the provided project after logging in")
-	// TODO should *probably* explicitly expose the flags below as local (currently global)
+	// TODO should explicitly expose the flags below as local (currently global)
 	//cmds.Flags().StringVar(&options.context, "context", "", "Use a specific config context to log in")
 	//cmds.Flags().StringVar(&options.server, "server", "", "The address and port of the API server to log in to")
 	return cmds
 }
 
-func whoami(clientCfg *kclient.Config) (string, error) {
+func whoami(clientCfg *kclient.Config) (*userapi.User, error) {
 	oClient, err := client.New(clientCfg)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	me, err := oClient.Users().Get("~")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return me.FullName, nil
+	return me, nil
 }
 
 func (o *loginOptions) validate(configStore *config.ConfigStore, clientCfg *kclient.Config) error {
@@ -247,4 +253,8 @@ func (o *loginOptions) contextProvided() bool {
 // TODO yikes refactor (probably use custom type for error)
 func isServerNotFound(e error) bool {
 	return e != nil && strings.Contains(e.Error(), "OpenShift is not configured")
+}
+
+func usernameFromUser(user *userapi.User) string {
+	return strings.Split(user.Name, ":")[1]
 }
