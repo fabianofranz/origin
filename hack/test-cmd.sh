@@ -306,8 +306,8 @@ openshift ex router --create --credentials="${OPENSHIFTCONFIG}"
 echo "ex router: ok"
 
 [ ! "$(openshift ex registry | grep 'does not exist')"]
-[ "$(openshift ex registry -o yaml --credentials="${KUBECONFIG}" | grep 'openshift/origin-docker-registry')" ]
-openshift ex registry --create --credentials="${KUBECONFIG}"
+[ "$(openshift ex registry -o yaml --credentials="${OPENSHIFTCONFIG}" | grep 'openshift/origin-docker-registry')" ]
+openshift ex registry --create --credentials="${OPENSHIFTCONFIG}"
 [ "$(openshift ex registry | grep 'service exists')" ]
 echo "ex registry: ok"
 
