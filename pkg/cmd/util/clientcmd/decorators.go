@@ -16,9 +16,7 @@ func DecorateNoServerFoundError(err error) error {
 		if strings.Contains(err.Error(), "no server found for") { // TODO there must be a better way to detect this  (probably use custom type for error)
 			// TODO parameterize parent cmd name
 			return fmt.Errorf(`OpenShift is not configured. You need to run the login command in order to create a default config for your server and credentials:
-
-  osc login [--username=<username>] [--password<password>] [--server=<server>]
-
+  osc login
 You can also run this command again providing the path to a config file directly, either through the --config flag of the OPENSHIFTCONFIG environment variable.
 `)
 		}

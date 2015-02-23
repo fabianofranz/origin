@@ -120,22 +120,24 @@ prompt for user input if not provided.
 			// if --project were provided, use that one
 			oClient, err := client.New(clientCfg)
 			checkErr(err)
-			// TODO must properly handle policies (projects an user belongs to) https://github.com/openshift/origin/pull/971
 			projects, err := oClient.Projects().List(labels.Everything(), labels.Everything())
 			checkErr(err)
 
 			if size := len(projects.Items); size > 0 {
 				if options.projectProvided() {
-					project, err := oClient.Projects().Get(options.project)
-					checkErr(err)
 					currentCtx := configStore.Config.Contexts[configStore.Config.CurrentContext]
+					for _, project := range projects.Items {
+						if project.Name == options.project {
+							currentCtx.Namespace = project.Name
+							config := configStore.Config
+							config.Contexts[config.CurrentContext] = currentCtx
 
-					currentCtx.Namespace = project.Name
-					configStore.Config.Contexts[configStore.Config.CurrentContext] = currentCtx
-
-					if err = kclientcmd.WriteToFile(*configStore.Config, configStore.Path); err != nil {
-						glog.Fatalf("Error saving config to file: %v", err)
+							if err = kclientcmd.WriteToFile(*configStore.Config, configStore.Path); err != nil {
+								glog.Fatalf("Error saving config to file: %v", err)
+							}
+						}
 					}
+
 				}
 				if size > 1 {
 					projectsNames := make([]string, size)

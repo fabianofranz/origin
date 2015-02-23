@@ -10,8 +10,7 @@ const (
 	unauthorizedExitCode = 1
 
 	unauthorizedErrorMessage = `Your session has expired. Use the following command to log in again:
-
-  osc login [--username=<username>] [--password=<password>]
+  osc login
 `
 )
 

@@ -49,11 +49,11 @@ func PromptForPasswordString(r io.Reader, format string, a ...interface{}) strin
 }
 
 func PromptForStringWithDefault(r io.Reader, def string, format string, a ...interface{}) string {
-	if s := PromptForString(r, format, a...); len(s) == 0 {
+	s := PromptForString(r, format, a...)
+	if len(s) == 0 {
 		return def
-	} else {
-		return s
 	}
+	return s
 }
 
 func readInput(r io.Reader) string {
@@ -61,10 +61,9 @@ func readInput(r io.Reader) string {
 		reader := bufio.NewReader(r)
 		result, _ := reader.ReadString('\n')
 		return strings.TrimSuffix(result, "\n")
-	} else {
-		glog.V(3).Infof("Unable to use a TTY")
-		var result string
-		fmt.Fscan(r, &result)
-		return result
 	}
+	glog.V(3).Infof("Unable to use a TTY")
+	var result string
+	fmt.Fscan(r, &result)
+	return result
 }

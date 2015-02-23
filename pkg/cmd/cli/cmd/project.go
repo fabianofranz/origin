@@ -16,7 +16,7 @@ func NewCmdProject(f *clientcmd.Factory, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "project <project-name>",
 		Short: "switch to another project",
-		Long:  `Switch to another project and set it in the config file`,
+		Long:  `Switch to another project and make it the default in your configuration.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) != 1 {
 				glog.Fatalf("You need to provide the project name.")
@@ -29,14 +29,12 @@ func NewCmdProject(f *clientcmd.Factory, out io.Writer) *cobra.Command {
 				glog.Fatalf("Error getting client: %v", err)
 			}
 
-			// TODO fetch only projects the user has access https://github.com/openshift/origin/pull/971
 			project, err := oClient.Projects().Get(projectName)
 			if err != nil {
 				if errors.IsNotFound(err) {
 					glog.Fatalf("Unable to find a project with name '%v'.", projectName)
-				} else {
-					glog.Fatalf("%v", err)
 				}
+				glog.Fatalf("%v", err)
 			}
 
 			clientCfg, err := f.OpenShiftClientConfig.ClientConfig()
@@ -52,10 +50,11 @@ func NewCmdProject(f *clientcmd.Factory, out io.Writer) *cobra.Command {
 			currentCtx := configStore.Config.Contexts[configStore.Config.CurrentContext]
 
 			currentCtx.Namespace = project.Name
-			configStore.Config.Contexts[configStore.Config.CurrentContext] = currentCtx
+			config := configStore.Config
+			config.Contexts[config.CurrentContext] = currentCtx
 
 			if err = kclientcmd.WriteToFile(*configStore.Config, configStore.Path); err != nil {
-				glog.Fatalf("Error saving config to file: %v", err)
+				glog.Fatalf("Error saving project information in the config: %v", err)
 			}
 
 			fmt.Printf("Now using project '%v'.\n", project.Name)
