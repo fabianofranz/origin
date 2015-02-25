@@ -16,7 +16,6 @@ func PromptForString(r io.Reader, format string, a ...interface{}) string {
 	return readInput(r)
 }
 
-// TODO not tested on other platforms
 func PromptForPasswordString(r io.Reader, format string, a ...interface{}) string {
 	if file, ok := r.(*os.File); ok {
 		inFd := file.Fd()
@@ -46,6 +45,18 @@ func PromptForPasswordString(r io.Reader, format string, a ...interface{}) strin
 	} else {
 		return PromptForString(r, format, a...)
 	}
+}
+
+func PromptForBool(r io.Reader, format string, a ...interface{}) bool {
+	str := PromptForString(r, format, a...)
+	switch strings.ToLower(str) {
+	case "1", "t", "true", "y", "yes":
+		return true
+	case "0", "f", "false", "n", "no":
+		return false
+	}
+	fmt.Println("You must input 'yes' or 'no'")
+	return PromptForBool(r, format, a...)
 }
 
 func PromptForStringWithDefault(r io.Reader, def string, format string, a ...interface{}) string {
