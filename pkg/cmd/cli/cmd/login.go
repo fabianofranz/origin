@@ -10,9 +10,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
-	kerrors "github.com/GoogleCloudPlatform/kubernetes/pkg/api/errors"
 	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
-	kclientcmd "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/labels"
 
 	"github.com/openshift/origin/pkg/client"
@@ -27,7 +25,6 @@ type loginOptions struct {
 	username string
 	password string
 	server   string
-	project  string
 	context  string
 }
 
@@ -39,7 +36,7 @@ func NewCmdLogin(f *osclientcmd.Factory, out io.Writer) *cobra.Command {
 		Short: "Logs in and returns a session token",
 		Long: `Logs in to the OpenShift server and prints out a session token.
 
-Username and password can be provided through flags, the command will
+Username, password and server URL can be provided through flags, the command will
 prompt for user input if not provided.
 `, // TODO better long desc
 		Run: func(cmd *cobra.Command, args []string) {
@@ -66,7 +63,7 @@ prompt for user input if not provided.
 			checkErr(err)
 
 			// validate flags
-			checkErr(options.validate(configStore, clientCfg))
+			checkErr(options.validate(configStore))
 
 			// Check to see if we're already signed in (with the user provided by --username)
 			// If so, simply make sure that the config file has that information
@@ -129,10 +126,7 @@ prompt for user input if not provided.
 				}
 			}
 
-			// select a project to use
-			// if the user only has one project, use that one
-			// if user has multiple, take the first and print the others
-			// if --project were provided, use that one
+			// print the user's projects and if there's more than one let them know how to switch
 			oClient, err := client.New(clientCfg)
 			checkErr(err)
 			projects, err := oClient.Projects().List(labels.Everything(), labels.Everything())
@@ -143,7 +137,8 @@ prompt for user input if not provided.
 
 			switch projectsLength {
 			case 0:
-				fmt.Printf("You don't have any project.")
+				fmt.Printf(`You don't have any project.
+Use the 'openshift ex new-project <project-name>' command to create a new project.`) // TODO parameterize cmd name
 			case 1:
 				fmt.Printf("Using project '%v'\n", projectsItems[0].Name)
 			default:
@@ -152,24 +147,9 @@ prompt for user input if not provided.
 					projectsNames[i] = project.Name
 				}
 				fmt.Printf("Your projects are: %v. You can switch between them at any time using 'osc project <project-name>'.\n", strings.Join(projectsNames, ", ")) // TODO parameterize cmd name
-
-				if options.projectProvided() {
-					cfg := configStore.Config
-					currentCtx := cfg.Contexts[cfg.CurrentContext]
-					for _, project := range projects.Items {
-						if project.Name == options.project {
-							currentCtx.Namespace = project.Name
-							cfg.Contexts[cfg.CurrentContext] = currentCtx
-
-							if err = kclientcmd.WriteToFile(*cfg, configStore.Path); err != nil {
-								glog.Fatalf("Error saving config to file: %v", err)
-							}
-						}
-					}
-					current, err := f.OpenShiftClientConfig.Namespace()
-					checkErr(err)
-					fmt.Printf("Now using project '%v'\n", current)
-				}
+				current, err := f.OpenShiftClientConfig.Namespace()
+				checkErr(err)
+				fmt.Printf("Using project '%v'\n", current)
 			}
 
 		},
@@ -177,7 +157,6 @@ prompt for user input if not provided.
 
 	cmds.Flags().StringVarP(&options.username, "username", "u", "", "Username, will prompt if not provided")
 	cmds.Flags().StringVarP(&options.password, "password", "p", "", "Password, will prompt if not provided")
-	cmds.Flags().StringVar(&options.project, "project", "", "If provided the client will switch to use the provided project after logging in")
 	// TODO should explicitly expose the flags below as local (currently global)
 	//cmds.Flags().StringVar(&options.context, "context", "", "Use a specific config context to log in")
 	//cmds.Flags().StringVar(&options.server, "server", "", "The address and port of the API server to log in to")
@@ -198,7 +177,7 @@ func whoami(clientCfg *kclient.Config) (*userapi.User, error) {
 	return me, nil
 }
 
-func (o *loginOptions) validate(configStore *config.ConfigStore, clientCfg *kclient.Config) error {
+func (o *loginOptions) validate(configStore *config.ConfigStore) error {
 	if o.contextProvided() {
 		ctx, ctxExists := configStore.Config.Contexts[o.context]
 
@@ -214,31 +193,11 @@ func (o *loginOptions) validate(configStore *config.ConfigStore, clientCfg *kcli
 		if o.serverProvided() && len(ctx.Cluster) > 0 {
 			return fmt.Errorf("The 'context' flag cannot be used with 'server' since it already provides this information. You must either provide a context or server.")
 		}
-		if o.projectProvided() && len(ctx.Namespace) > 0 {
-			return fmt.Errorf("The 'context' flag cannot be used with 'project' since it already provides this information. You must either provide a context or project.")
-		}
 
 		// if context were provided, take everything from it
 		o.username = ctx.AuthInfo
 		o.password = ""
 		o.server = ctx.Cluster
-		o.project = ctx.Namespace
-	}
-
-	// project must exist if provided
-	if o.projectProvided() {
-		oClient, err := client.New(clientCfg)
-		if err != nil {
-			return err
-		}
-		_, err = oClient.Projects().Get(o.project)
-		if err != nil {
-			if kerrors.IsNotFound(err) {
-				return fmt.Errorf("Project '%s' not found\n", o.project)
-			} else {
-				return err
-			}
-		}
 	}
 
 	return nil
@@ -254,10 +213,6 @@ func (o *loginOptions) passwordProvided() bool {
 
 func (o *loginOptions) serverProvided() bool {
 	return len(o.server) > 0
-}
-
-func (o *loginOptions) projectProvided() bool {
-	return len(o.project) > 0
 }
 
 func (o *loginOptions) contextProvided() bool {
