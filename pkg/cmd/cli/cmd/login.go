@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/golang/glog"
@@ -44,19 +45,20 @@ prompt for user input if not provided.
 		Run: func(cmd *cobra.Command, args []string) {
 			// fetch config and if a server were not provided, prompt for it
 			clientCfg, err := f.OpenShiftClientConfig.ClientConfig()
+
 			if isServerNotFound(err) {
 				defaultServer := osclientcmd.DefaultClusterURL
-				promptedServer := util.PromptForStringWithDefault(os.Stdin, defaultServer, "OpenShift is not configured. Please provide the server URL or hit <enter> to use '%v': ", defaultServer)
+				promptedServer := util.PromptForStringWithDefault(os.Stdin, defaultServer, "Please provide the OpenShift server URL or hit <enter> to use '%v': ", defaultServer)
 				serverFlag := cmd.Flags().Lookup("server")
 				if serverFlag != nil {
 					serverFlag.Value.Set(promptedServer)
 					if err := cmd.Execute(); err != nil {
 						os.Exit(1)
-					} else {
-						os.Exit(0)
 					}
+					os.Exit(0)
 				}
 			}
+
 			checkErr(err)
 
 			// try to find a config file from default locations, or create a new one if not found
@@ -103,6 +105,18 @@ prompt for user input if not provided.
 				if requiresNewLogin {
 					clientCfg.BearerToken = ""
 					accessToken, err := tokencmd.RequestToken(clientCfg, os.Stdin, options.username, options.password)
+					if isServerCertificateSignedByUnknownAuthority(err) {
+						fmt.Println("The server uses a certificate signed by unknown authority. You can bypass the certificate check but it will make all connections insecure.")
+						insecure := util.PromptForBool(os.Stdin, "Use insecure connections [y/N]? ")
+						insecureFlag := cmd.Flags().Lookup("insecure-skip-tls-verify")
+						if insecure && insecureFlag != nil {
+							insecureFlag.Value.Set(strconv.FormatBool(insecure))
+							if err := cmd.Execute(); err != nil {
+								os.Exit(1)
+							}
+							os.Exit(0)
+						}
+					}
 					checkErr(err)
 
 					if me, err := whoami(clientCfg); err == nil {
@@ -253,6 +267,11 @@ func (o *loginOptions) contextProvided() bool {
 // TODO yikes refactor (probably use custom type for error)
 func isServerNotFound(e error) bool {
 	return e != nil && strings.Contains(e.Error(), "OpenShift is not configured")
+}
+
+// TODO yikes refactor (probably use custom type for error)
+func isServerCertificateSignedByUnknownAuthority(e error) bool {
+	return e != nil && strings.Contains(e.Error(), "certificate signed by unknown authority")
 }
 
 func usernameFromUser(user *userapi.User) string {

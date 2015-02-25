@@ -100,7 +100,7 @@ export KUBERNETES_MASTER="${API_SCHEME}://${API_HOST}:${API_PORT}"
 # Set certificates for osc from now on
 if [[ "${API_SCHEME}" == "https" ]]; then
     # test bad certificate
-    [ "$(osc get services 2>&1 | grep 'The server uses a certificate signed by an unknown authority')" ]
+    [ "$(osc get services 2>&1 | grep 'The server uses a certificate signed by unknown authority')" ]
 
     # ignore anything in the running user's $HOME dir
     export HOME="${CERT_DIR}/admin"

@@ -55,7 +55,7 @@ func PromptForBool(r io.Reader, format string, a ...interface{}) bool {
 	case "0", "f", "false", "n", "no":
 		return false
 	}
-	fmt.Println("You must input 'yes' or 'no'")
+	fmt.Println("Please enter 'yes' or 'no'.")
 	return PromptForBool(r, format, a...)
 }
 

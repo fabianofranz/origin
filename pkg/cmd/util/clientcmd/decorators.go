@@ -28,7 +28,7 @@ You can also run this command again providing the path to a config file directly
 func DecorateServerCertificateIssues(err error) error {
 	if err != nil {
 		if strings.Contains(err.Error(), "certificate signed by unknown authority") {
-			return fmt.Errorf("The server uses a certificate signed by an unknown authority. You may need to use the --certificate-authority flag to provide the path to a certificate file for the certificate authority, or --insecure-skip-tls-verify to bypass the certificate check and use insecure connections.")
+			return fmt.Errorf("The server uses a certificate signed by unknown authority. You may need to use the --certificate-authority flag to provide the path to a certificate file for the certificate authority, or --insecure-skip-tls-verify to bypass the certificate check and use insecure connections.")
 		}
 	}
 	return err
