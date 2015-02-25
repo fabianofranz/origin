@@ -16,15 +16,18 @@ import (
 // 6. .kubeconfig file in current directory
 // 7. ~/.kube/.kubeconfig file
 func NewOpenShiftClientConfigLoadingRules() *clientcmd.ClientConfigLoadingRules {
-	// Kube locations (notice we don't expose --kubeconfig)
-	loadingRules := clientcmd.NewClientConfigLoadingRules()
-	loadingRules.Default().EnvVarPath = os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
+	filePriority := []string{
+		// OpenShift locations
+		os.Getenv(OpenShiftConfigPathEnvVar),
+		OpenShiftConfigFileName,
+		fmt.Sprintf("%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDirFileName),
 
-	// OpenShift locations
-	envVarPath := os.Getenv(OpenShiftConfigPathEnvVar)
-	currentDirectoryPath := OpenShiftConfigFileName
-	homeDirectoryPath := fmt.Sprintf("%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDirFileName)
-	loadingRules.PrependRule("", envVarPath, currentDirectoryPath, homeDirectoryPath)
+		// Kube locations
+		os.Getenv(KubeConfigPathEnvVar),
+		KubeConfigFileName,
+		fmt.Sprintf("%v/%v/%v", os.Getenv("HOME"), KubeConfigHomeDir, KubeConfigFileName),
+	}
+	loadingRules := clientcmd.NewClientConfigLoadingRules(filePriority)
 
 	return loadingRules
 }

@@ -38,13 +38,11 @@ func PromptForPasswordString(r io.Reader, format string, a ...interface{}) strin
 			fmt.Printf("\n")
 
 			return input
-		} else {
-			glog.V(3).Infof("Stdin is not a terminal")
-			return PromptForString(r, format, a...)
 		}
-	} else {
+		glog.V(3).Infof("Stdin is not a terminal")
 		return PromptForString(r, format, a...)
 	}
+	return PromptForString(r, format, a...)
 }
 
 func PromptForBool(r io.Reader, format string, a ...interface{}) bool {
@@ -68,7 +66,7 @@ func PromptForStringWithDefault(r io.Reader, def string, format string, a ...int
 }
 
 func readInput(r io.Reader) string {
-	if file, ok := r.(*os.File); ok && term.IsTerminal(file.Fd()) {
+	if IsTerminal(r) {
 		reader := bufio.NewReader(r)
 		result, _ := reader.ReadString('\n')
 		return strings.TrimSuffix(result, "\n")
@@ -77,4 +75,9 @@ func readInput(r io.Reader) string {
 	var result string
 	fmt.Fscan(r, &result)
 	return result
+}
+
+func IsTerminal(r io.Reader) bool {
+	file, ok := r.(*os.File)
+	return ok && term.IsTerminal(file.Fd())
 }

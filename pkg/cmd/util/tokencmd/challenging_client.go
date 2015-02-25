@@ -16,10 +16,11 @@ import (
 // challengingClient conforms the kclient.HTTPClient interface.  It introspects responses for auth challenges and
 // tries to response to those challenges in order to get a token back.
 type challengingClient struct {
-	delegate *http.Client
-	reader   io.Reader
-	Username string
-	Password string
+	delegate            *http.Client
+	reader              io.Reader
+	defaultUsername     string
+	defaultPassword     string
+	defaultRoundTripper http.RoundTripper
 }
 
 const basicAuthPattern = `[\s]*Basic[\s]*realm="([\w]+)"`
@@ -30,26 +31,29 @@ var basicAuthRegex = regexp.MustCompile(basicAuthPattern)
 func (client *challengingClient) Do(req *http.Request) (*http.Response, error) {
 	resp, err := client.delegate.Do(req)
 	if err != nil {
-		err = clientcmd.DecorateErrors(err)
+		err = clientcmd.WrapClientErrors(err)
 		return nil, err
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		if wantsBasicAuth, realm := isBasicAuthChallenge(resp); wantsBasicAuth {
-			uDefaulted := len(client.Username) > 0
-			pDefaulted := len(client.Password) > 0
+			username := client.defaultUsername
+			password := client.defaultPassword
 
-			if !(uDefaulted && pDefaulted) {
+			uDefaulted := len(client.defaultUsername) > 0
+			pDefaulted := len(client.defaultPassword) > 0
+
+			if util.IsTerminal(client.reader) && !(uDefaulted && pDefaulted) {
 				fmt.Printf("Authenticate for \"%v\"\n", realm)
 				if !uDefaulted {
-					client.Username = util.PromptForString(client.reader, "Username: ")
+					username = util.PromptForString(client.reader, "Username: ")
 				}
 				if !pDefaulted {
-					client.Password = util.PromptForPasswordString(client.reader, "Password: ")
+					password = util.PromptForPasswordString(client.reader, "Password: ")
 				}
 			}
 
-			client.delegate.Transport = kclient.NewBasicAuthRoundTripper(client.Username, client.Password, client.delegate.Transport)
+			client.delegate.Transport = kclient.NewBasicAuthRoundTripper(username, password, client.defaultRoundTripper)
 			return client.Do(resp.Request)
 		}
 	}

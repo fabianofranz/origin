@@ -55,12 +55,13 @@ func NewCommandCLI(name, fullName string) *cobra.Command {
 	}
 
 	f := clientcmd.New(cmds.PersistentFlags())
+	in := os.Stdin
 	out := os.Stdout
 
 	cmds.SetUsageTemplate(templates.CliUsageTemplate())
 	cmds.SetHelpTemplate(templates.CliHelpTemplate())
 
-	cmds.AddCommand(cmd.NewCmdLogin(f, out))
+	cmds.AddCommand(cmd.NewCmdLogin(f, in, out))
 
 	cmds.AddCommand(cmd.NewCmdNewApplication(f, out))
 	cmds.AddCommand(cmd.NewCmdStartBuild(f, out))

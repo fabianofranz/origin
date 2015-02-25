@@ -7,8 +7,10 @@ import (
 	"regexp"
 
 	kclient "github.com/GoogleCloudPlatform/kubernetes/pkg/client"
-
 	"github.com/openshift/origin/pkg/client"
+	"github.com/openshift/origin/pkg/oauth/server/osinserver"
+
+	server "github.com/openshift/origin/pkg/cmd/server/origin"
 )
 
 const accessTokenRedirectPattern = `#access_token=([\w]+)&`
@@ -21,7 +23,7 @@ type tokenGetterInfo struct {
 
 // RequestToken uses the cmd arguments to locate an openshift oauth server and attempts to authenticate
 // it returns the access token if it gets one.  An error if it does not
-func RequestToken(clientCfg *kclient.Config, reader io.Reader, username string, password string) (string, error) {
+func RequestToken(clientCfg *kclient.Config, reader io.Reader, defaultUsername string, defaultPassword string) (string, error) {
 	tokenGetter := &tokenGetterInfo{}
 
 	osClient, err := client.New(clientCfg)
@@ -41,10 +43,9 @@ func RequestToken(clientCfg *kclient.Config, reader io.Reader, username string, 
 		CheckRedirect: tokenGetter.checkRedirect,
 	}
 
-	challengingClient := &challengingClient{httpClient, reader, username, password}
-	osClient.Client = challengingClient
+	osClient.Client = &challengingClient{httpClient, reader, defaultUsername, defaultPassword, clientTransport}
 
-	result := osClient.Get().AbsPath("oauth", "authorize").Param("response_type", "token").Param("client_id", "openshift-challenging-client").Do()
+	result := osClient.Get().AbsPath(server.OpenShiftOAuthAPIPrefix, osinserver.AuthorizePath).Param("response_type", "token").Param("client_id", "openshift-challenging-client").Do()
 
 	if len(tokenGetter.accessToken) == 0 {
 		return "", result.Error()

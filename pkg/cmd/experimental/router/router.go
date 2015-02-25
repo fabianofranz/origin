@@ -148,11 +148,7 @@ func NewCmdRouter(f *clientcmd.Factory, parentName, name string, out io.Writer) 
 					glog.Fatalf("You must specify a .kubeconfig file path containing credentials for connecting the router to the master with --credentials")
 				}
 
-				clientConfigLoadingRules := &kclientcmd.ClientConfigLoadingRules{
-					Rules: []kclientcmd.ClientConfigLoadingRule{
-						{CommandLinePath: cfg.Credentials},
-					},
-				}
+				clientConfigLoadingRules := &kclientcmd.ClientConfigLoadingRules{cfg.Credentials, []string{}}
 				credentials, err := clientConfigLoadingRules.Load()
 				if err != nil {
 					glog.Fatalf("The provided credentials %q could not be loaded: %v", cfg.Credentials, err)

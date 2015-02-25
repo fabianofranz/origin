@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/golang/glog"
+	"github.com/spf13/cobra"
+
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/client"
 	"github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd"
 	clientcmdapi "github.com/GoogleCloudPlatform/kubernetes/pkg/client/clientcmd/api"
 	cmdutil "github.com/GoogleCloudPlatform/kubernetes/pkg/kubectl/cmd/util"
-	"github.com/golang/glog"
-	"github.com/spf13/cobra"
+
+	"github.com/openshift/origin/pkg/cmd/flagtypes"
 )
 
 const (
@@ -40,6 +43,14 @@ type ConfigStore struct {
 	providerLocation string
 }
 
+type ConfigStoreNotFoundError struct {
+	msg string
+}
+
+func (e *ConfigStoreNotFoundError) Error() string {
+	return e.msg
+}
+
 func (c *ConfigStore) FromFlag() bool {
 	return c.providerLocation == fromFlag
 }
@@ -65,7 +76,6 @@ func (c *ConfigStore) FromKube() bool {
 }
 
 func GetConfigFromDefaultLocations(clientCfg *client.Config, cmd *cobra.Command) (*ConfigStore, error) {
-
 	// --config flag, if provided will only try this one
 	path := cmdutil.GetFlagString(cmd, OpenShiftConfigFlagName)
 	if len(path) > 0 {
@@ -119,42 +129,15 @@ func GetConfigFromDefaultLocations(clientCfg *client.Config, cmd *cobra.Command)
 		return config, nil
 	}
 
-	configPathToCreateIfNotFound := fmt.Sprintf("%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDirFileName)
+	err = &ConfigStoreNotFoundError{"Config file not found in any of the expected locations."}
+	glog.V(4).Infof(err.Error())
 
-	glog.V(3).Infof("Config file not found in any of the expected locations, a new config will be created: %v ", configPathToCreateIfNotFound)
-
-	newConfig := clientcmdapi.NewConfig()
-
-	if err = os.MkdirAll(fmt.Sprintf("%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDir), 0755); err != nil {
-		return nil, fmt.Errorf("Config file not found in any of the default locations. Tried to create but failed while creating directory %v: %v", OpenShiftConfigHomeDirFileName, err)
-	} else {
-		glog.V(5).Infof("Created directory %v", "~/"+OpenShiftConfigHomeDir)
-	}
-
-	if err = clientcmd.WriteToFile(*newConfig, configPathToCreateIfNotFound); err != nil {
-		return nil, fmt.Errorf("Config file not found in any of the default locations. Tried to create but failed with: %v", err)
-	}
-
-	config, err = tryToLoad(configPathToCreateIfNotFound, fromKube, fromHomeDir)
-	if err == nil {
-		return config, nil
-	} else {
-		return nil, err
-	}
-}
-
-func getConfigFromFile(filename string) (*clientcmdapi.Config, error) {
-	var err error
-	config, err := clientcmd.LoadFromFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	return config, nil
+	return nil, err
 }
 
 func tryToLoad(path string, providerEngine string, providerLocation string) (*ConfigStore, error) {
 	if len(path) > 0 {
-		config, err := getConfigFromFile(path)
+		config, err := clientcmd.LoadFromFile(path)
 		if err == nil {
 			glog.V(4).Infof("Using config from %v", path)
 			return &ConfigStore{config, path, providerEngine, providerLocation}, nil
@@ -166,4 +149,88 @@ func tryToLoad(path string, providerEngine string, providerLocation string) (*Co
 	err := fmt.Errorf("Path for %v:%v was empty", providerEngine, providerLocation)
 	glog.V(5).Infof(err.Error())
 	return nil, err
+}
+
+func UpdateConfigFile(username, token string, clientCfg clientcmd.ClientConfig, configStore *ConfigStore) error {
+	glog.V(4).Infof("Trying to merge and update %v:%v config to '%v'...", configStore.providerEngine, configStore.providerLocation, configStore.Path)
+
+	rawMergedConfig, err := clientCfg.RawConfig()
+	if err != nil {
+		return err
+	}
+	clientConfig, err := clientCfg.ClientConfig()
+	if err != nil {
+		return err
+	}
+	namespace, err := clientCfg.Namespace()
+	if err != nil {
+		return err
+	}
+
+	config := clientcmdapi.NewConfig()
+
+	credentialsName := username
+	if len(credentialsName) == 0 {
+		credentialsName = "osc-login"
+	}
+	credentials := clientcmdapi.NewAuthInfo()
+	credentials.Token = token
+	config.AuthInfos[credentialsName] = *credentials
+
+	serverAddr := flagtypes.Addr{Value: clientConfig.Host}.Default()
+	clusterName := fmt.Sprintf("%v:%v", serverAddr.Host, serverAddr.Port)
+	cluster := clientcmdapi.NewCluster()
+	cluster.Server = clientConfig.Host
+	cluster.InsecureSkipTLSVerify = clientConfig.Insecure
+	cluster.CertificateAuthority = clientConfig.CAFile
+	config.Clusters[clusterName] = *cluster
+
+	contextName := clusterName + "-" + credentialsName
+	context := clientcmdapi.NewContext()
+	context.Cluster = clusterName
+	context.AuthInfo = credentialsName
+	context.Namespace = namespace
+	config.Contexts[contextName] = *context
+
+	config.CurrentContext = contextName
+
+	configToModify := configStore.Config
+
+	configToWrite, err := MergeConfig(rawMergedConfig, *configToModify, *config)
+	if err != nil {
+		return err
+	}
+
+	// TODO need to handle file not writable (probably create a copy)
+	err = clientcmd.WriteToFile(*configToWrite, configStore.Path)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func CreateNewEmptyConfig() (*ConfigStore, error) {
+	configPathToCreateIfNotFound := fmt.Sprintf("%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDirFileName)
+
+	glog.V(3).Infof("A new config will be created at: %v ", configPathToCreateIfNotFound)
+
+	newConfig := clientcmdapi.NewConfig()
+
+	if err := os.MkdirAll(fmt.Sprintf("%v/%v", os.Getenv("HOME"), OpenShiftConfigHomeDir), 0755); err != nil {
+		return nil, fmt.Errorf("Tried to create a new config file but failed while creating directory %v: %v", OpenShiftConfigHomeDirFileName, err)
+	}
+	glog.V(5).Infof("Created directory %v", "~/"+OpenShiftConfigHomeDir)
+
+	if err := clientcmd.WriteToFile(*newConfig, configPathToCreateIfNotFound); err != nil {
+		return nil, fmt.Errorf("Tried to create a new config file but failed with: %v", err)
+	}
+	glog.V(5).Infof("Created file %v", configPathToCreateIfNotFound)
+
+	config, err := tryToLoad(configPathToCreateIfNotFound, fromOpenShift, fromHomeDir)
+	if err != nil {
+		return nil, err
+	}
+
+	return config, nil
 }

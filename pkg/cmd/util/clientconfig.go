@@ -7,11 +7,10 @@ import (
 	"github.com/openshift/origin/pkg/cmd/cli/config"
 )
 
-// Copy of kubectl/cmd/DefaultClientConfig, using NewNonInteractiveDeferredLoadingClientConfig
 func DefaultClientConfig(flags *pflag.FlagSet) clientcmd.ClientConfig {
 	loadingRules := config.NewOpenShiftClientConfigLoadingRules()
 
-	flags.StringVar(&loadingRules.Default().CommandLinePath, config.OpenShiftConfigFlagName, "", "Path to the config file to use for CLI requests.")
+	flags.StringVar(&loadingRules.CommandLinePath, config.OpenShiftConfigFlagName, "", "Path to the config file to use for CLI requests.")
 
 	overrides := &clientcmd.ConfigOverrides{}
 	overrideFlags := clientcmd.RecommendedConfigOverrideFlags("")

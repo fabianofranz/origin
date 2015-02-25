@@ -22,12 +22,10 @@ import (
 	"github.com/openshift/origin/pkg/cmd/cli/describe"
 )
 
-const DefaultClusterURL = "https://localhost:8443"
-
 // NewFactory creates a default Factory for commands that should share identical server
 // connection behavior. Most commands should use this method to get a factory.
 func New(flags *pflag.FlagSet) *Factory {
-	// Override global default to https and port 8443
+	// Override global default to "" so we force the client to ask for user input
 	clientcmd.DefaultCluster.Server = ""
 
 	// TODO: there should be two client configs, one for OpenShift, and one for Kubernetes
@@ -42,7 +40,7 @@ func New(flags *pflag.FlagSet) *Factory {
 func DefaultClientConfig(flags *pflag.FlagSet) clientcmd.ClientConfig {
 	loadingRules := config.NewOpenShiftClientConfigLoadingRules()
 
-	flags.StringVar(&loadingRules.Default().CommandLinePath, config.OpenShiftConfigFlagName, "", "Path to the config file to use for CLI requests.")
+	flags.StringVar(&loadingRules.CommandLinePath, config.OpenShiftConfigFlagName, "", "Path to the config file to use for CLI requests.")
 
 	overrides := &clientcmd.ConfigOverrides{}
 	overrideFlags := clientcmd.RecommendedConfigOverrideFlags("")
@@ -67,19 +65,19 @@ type ClientConfig struct {
 
 func (cfg *ClientConfig) ClientConfig() (*kclient.Config, error) {
 	c, err := cfg.KClientConfig.ClientConfig()
-	err = DecorateErrors(err)
+	err = WrapClientErrors(err)
 	return c, err
 }
 
 func (cfg *ClientConfig) RawConfig() (clientcmdapi.Config, error) {
 	c, err := cfg.KClientConfig.RawConfig()
-	err = DecorateErrors(err)
+	err = WrapClientErrors(err)
 	return c, err
 }
 
 func (cfg *ClientConfig) Namespace() (string, error) {
 	n, err := cfg.KClientConfig.Namespace()
-	err = DecorateErrors(err)
+	err = WrapClientErrors(err)
 	return n, err
 }
 
