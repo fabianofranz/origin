@@ -88,10 +88,13 @@ func (o viewOptions) validate() error {
 func (o *viewOptions) getStartingConfig() (*clientcmdapi.Config, string, error) {
 	switch {
 	case o.merge:
-		loadingRules := clientcmd.NewClientConfigLoadingRules()
-		defaultLoadingRule := loadingRules.Default()
-		defaultLoadingRule.EnvVarPath = os.Getenv("KUBECONFIG")
-		defaultLoadingRule.CommandLinePath = o.pathOptions.specifiedFile
+		loadPriority := []string{
+			os.Getenv(clientcmd.RecommendedConfigPathEnvVar),
+			clientcmd.RecommendedConfigPathInCurrentDir,
+			fmt.Sprintf("%v/%v", os.Getenv("HOME"), clientcmd.RecommendedConfigPathInHomeDir),
+		}
+		loadingRules := clientcmd.NewClientConfigLoadingRules(loadPriority)
+		loadingRules.CommandLinePath = o.pathOptions.specifiedFile
 
 		overrides := &clientcmd.ConfigOverrides{}
 		clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, overrides)

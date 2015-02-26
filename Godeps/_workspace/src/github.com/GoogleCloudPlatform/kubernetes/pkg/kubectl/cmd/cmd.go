@@ -309,10 +309,14 @@ func (f *Factory) ClientMapperForCommand(cmd *cobra.Command) resource.ClientMapp
 //           3.  If the command line specifies one and the auth info specifies another, honor the command line technique.
 //   2.  Use default values and potentially prompt for auth information
 func DefaultClientConfig(flags *pflag.FlagSet) clientcmd.ClientConfig {
-	loadingRules := clientcmd.NewClientConfigLoadingRules()
-	defaultLoadingRule := loadingRules.Default()
-	defaultLoadingRule.EnvVarPath = os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
-	flags.StringVar(&defaultLoadingRule.CommandLinePath, "kubeconfig", "", "Path to the kubeconfig file to use for CLI requests.")
+	loadPriority := []string{
+		os.Getenv(clientcmd.RecommendedConfigPathEnvVar),
+		clientcmd.RecommendedConfigPathInCurrentDir,
+		fmt.Sprintf("%v/%v", os.Getenv("HOME"), clientcmd.RecommendedConfigPathInHomeDir),
+	}
+
+	loadingRules := clientcmd.NewClientConfigLoadingRules(loadPriority)
+	flags.StringVar(&loadingRules.CommandLinePath, clientcmd.RecommendedConfigPathFlag, "", "Path to the kubeconfig file to use for CLI requests.")
 
 	overrides := &clientcmd.ConfigOverrides{}
 	flagNames := clientcmd.RecommendedConfigOverrideFlags("")
