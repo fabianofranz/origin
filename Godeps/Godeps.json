@@ -588,23 +588,16 @@
 			"Rev": "f94581bd91620d0ccd9c22bb1d2de13f6a605857"
 		},
 		{
+			"ImportPath": "github.com/k0kubun/pp",
+			"Rev": "fd0d559d7bda44e53f776bf3046da96e2693380b"
+		},
+		{
+			"ImportPath": "github.com/mattn/go-colorable",
+			"Rev": "043ae16291351db8465272edf465c9f388161627"
+		},
+		{
 			"ImportPath": "github.com/matttproud/golang_protobuf_extensions/ext",
 			"Rev": "7a864a042e844af638df17ebbabf8183dace556a"
-		},
-		{
-			"ImportPath": "github.com/openshift/source-to-image/pkg/build",
-			"Comment": "v0.2",
-			"Rev": "c0c154efcba27ea5693c428bfe28560c220b4850"
-		},
-		{
-			"ImportPath": "github.com/openshift/source-to-image/pkg/git",
-			"Comment": "v0.2",
-			"Rev": "c0c154efcba27ea5693c428bfe28560c220b4850"
-		},
-		{
-			"ImportPath": "github.com/openshift/source-to-image/pkg/tar",
-			"Comment": "v0.2",
-			"Rev": "c0c154efcba27ea5693c428bfe28560c220b4850"
 		},
 		{
 			"ImportPath": "github.com/openshift/source-to-image/pkg/api",
@@ -612,7 +605,12 @@
 			"Rev": "c0c154efcba27ea5693c428bfe28560c220b4850"
 		},
 		{
-			"ImportPath": "github.com/openshift/source-to-image/pkg/scripts",
+			"ImportPath": "github.com/openshift/source-to-image/pkg/build",
+			"Comment": "v0.2",
+			"Rev": "c0c154efcba27ea5693c428bfe28560c220b4850"
+		},
+		{
+			"ImportPath": "github.com/openshift/source-to-image/pkg/docker",
 			"Comment": "v0.2",
 			"Rev": "c0c154efcba27ea5693c428bfe28560c220b4850"
 		},
@@ -622,7 +620,17 @@
 			"Rev": "c0c154efcba27ea5693c428bfe28560c220b4850"
 		},
 		{
-			"ImportPath": "github.com/openshift/source-to-image/pkg/docker",
+			"ImportPath": "github.com/openshift/source-to-image/pkg/git",
+			"Comment": "v0.2",
+			"Rev": "c0c154efcba27ea5693c428bfe28560c220b4850"
+		},
+		{
+			"ImportPath": "github.com/openshift/source-to-image/pkg/scripts",
+			"Comment": "v0.2",
+			"Rev": "c0c154efcba27ea5693c428bfe28560c220b4850"
+		},
+		{
+			"ImportPath": "github.com/openshift/source-to-image/pkg/tar",
 			"Comment": "v0.2",
 			"Rev": "c0c154efcba27ea5693c428bfe28560c220b4850"
 		},
