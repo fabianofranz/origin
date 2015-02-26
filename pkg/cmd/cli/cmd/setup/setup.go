@@ -45,7 +45,7 @@ type ClientSetup interface {
 	DetermineServerInfo() (*ServerSetupInfo, error)
 	DetermineAuthInfo() (*AuthSetupInfo, error)
 	DetermineProjectInfo() (*ProjectSetupInfo, error)
-	MergeConfig() error
+	SaveConfig() error
 }
 
 // Implements a ClientSetup specifically targeted for osc
@@ -86,7 +86,7 @@ func (c OscClientSetup) DetermineServerInfo() (*ServerSetupInfo, error) {
 	// if a server were not provided, prompt for it and rerun the command
 	if isOpenShiftNotConfigured(err) {
 		defaultServer := defaultClusterURL
-		promptedServer := util.PromptForStringWithDefault(c.reader, defaultServer, "Please provide the OpenShift server URL or hit <enter> to use '%v': ", defaultServer)
+		promptedServer := util.PromptForStringWithDefault(c.reader, defaultServer, "Please provide the server URL or just <enter> to use '%v': ", defaultServer)
 		serverFlag := c.cmd.Flags().Lookup("server")
 		if serverFlag != nil {
 			serverFlag.Value.Set(promptedServer)
@@ -122,22 +122,18 @@ func (c OscClientSetup) DetermineAuthInfo() (*AuthSetupInfo, error) {
 		return c.authSetupInfo, nil
 	}
 
-	configStore, err := config.GetConfigFromDefaultLocations(clientCfg, c.cmd)
+	rawCfg, err := c.factory.OpenShiftClientConfig.RawConfig()
 	if err != nil {
-		if _, isNotFound := err.(*config.ConfigStoreNotFoundError); !isNotFound {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	// if trying to log in an user that's not the currently logged in, try to reuse an existing token
-	if configStore != nil && c.usernameProvided() {
+	if c.usernameProvided() {
 		glog.V(5).Infof("Checking existing authentication info for '%v'...\n", c.username)
 
-		config := configStore.Config
-
-		for _, ctx := range config.Contexts {
-			authInfo := config.AuthInfos[ctx.AuthInfo]
-			clusterInfo := config.Clusters[ctx.Cluster]
+		for _, ctx := range rawCfg.Contexts {
+			authInfo := rawCfg.AuthInfos[ctx.AuthInfo]
+			clusterInfo := rawCfg.Clusters[ctx.Cluster]
 
 			if ctx.AuthInfo == c.username && clusterInfo.Server == c.server && len(authInfo.Token) > 0 { // only token for now
 				glog.V(5).Infof("Authentication exists for '%v' on '%v', trying to use it...\n", c.server, c.username)
@@ -242,7 +238,7 @@ Use the 'openshift ex new-project <project-name>' command to create a new projec
 	return c.projectSetupInfo, nil
 }
 
-func (c OscClientSetup) MergeConfig() error {
+func (c OscClientSetup) SaveConfig() error {
 	if c.serverSetupInfo == nil || c.authSetupInfo == nil || c.projectSetupInfo == nil {
 		return fmt.Errorf("Insufficient data to merge configuration.")
 	}

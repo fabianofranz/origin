@@ -15,7 +15,7 @@ const (
 	COLOR_INFO    = ""
 	COLOR_SUCCESS = "[green]"
 	COLOR_WARNING = "[yellow]"
-	COLOR_ERROR   = "[red]"
+	COLOR_ERROR   = "[light_red]"
 )
 
 // A logger implementation with signature compatible with "github.com/golang/glog", but

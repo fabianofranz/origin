@@ -51,9 +51,9 @@ func NewCmdLogin(f *osclientcmd.Factory, in io.Reader, out io.Writer) *cobra.Com
 			checkErr(err)
 			var loggedMsg string
 			if authInfo.NewAuth {
-				loggedMsg = "Logged into '%v' as '%v'"
+				loggedMsg = "Logged into '%v' as '%v'."
 			} else {
-				loggedMsg = "Already logged into '%v' as '%v'"
+				loggedMsg = "Already logged into '%v' as '%v'."
 			}
 			glog.Infof(loggedMsg, serverInfo.URL, authInfo.FullName)
 
@@ -61,16 +61,16 @@ func NewCmdLogin(f *osclientcmd.Factory, in io.Reader, out io.Writer) *cobra.Com
 			projectInfo, err := clientSetup.DetermineProjectInfo()
 			checkErr(err)
 
+			glog.Warningf("Using project '%v'.", projectInfo.ProjectInUse)
 			if len(projectInfo.Projects) > 0 {
-				glog.Warningf("Your projects are: %v. You can switch between them at any time using 'osc project <project-name>'.", strings.Join(projectInfo.Projects, ", ")) // TODO parameterize cmd name
+				glog.Infof("Your projects are: %v. You can switch between them at any time using 'osc project <project-name>'.", strings.Join(projectInfo.Projects, ", ")) // TODO parameterize cmd name
 			}
-			glog.Infof("Using project '%v'.", projectInfo.ProjectInUse)
 
 			// merge configs
-			err = clientSetup.MergeConfig()
+			err = clientSetup.SaveConfig()
 			checkErr(err)
 
-			glog.Success("Done! Run 'osc --help' for more information about client commands.")
+			glog.Success("\nDone! Run 'osc --help' for more information about client commands.")
 		},
 	}
 
