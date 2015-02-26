@@ -1,4 +1,4 @@
-package cmd
+package setup
 
 import (
 	"fmt"
@@ -62,6 +62,21 @@ type OscClientSetup struct {
 	serverSetupInfo  *ServerSetupInfo
 	authSetupInfo    *AuthSetupInfo
 	projectSetupInfo *ProjectSetupInfo
+}
+
+func NewOscClientSetup(f *clientcmd.Factory, cmd *cobra.Command, reader io.Reader, defaultUsername string, defaultPassword string, defaultServer string, defaultContext string) *OscClientSetup {
+	return &OscClientSetup{
+		reader:           reader,
+		factory:          f,
+		cmd:              cmd,
+		username:         defaultUsername,
+		password:         defaultPassword,
+		server:           defaultServer,
+		context:          defaultContext,
+		serverSetupInfo:  &ServerSetupInfo{},
+		authSetupInfo:    &AuthSetupInfo{},
+		projectSetupInfo: &ProjectSetupInfo{},
+	}
 }
 
 func (c OscClientSetup) DetermineServerInfo() (*ServerSetupInfo, error) {
@@ -272,14 +287,20 @@ func usernameFromUser(user *api.User) string {
 	return strings.Split(user.Name, ":")[1]
 }
 
-// TODO yikes refactor (probably use custom type for error)
-func isOpenShiftNotConfigured(e error) bool {
-	return e != nil && strings.Contains(e.Error(), "OpenShift is not configured")
+func isOpenShiftNotConfigured(err error) bool {
+	if err != nil {
+		err, ok := err.(clientcmd.ClientError)
+		return ok && err.IsNotConfigured()
+	}
+	return false
 }
 
-// TODO yikes refactor (probably use custom type for error)
-func isServerCertificateSignedByUnknownAuthority(e error) bool {
-	return e != nil && strings.Contains(e.Error(), "certificate signed by unknown authority")
+func isServerCertificateSignedByUnknownAuthority(err error) bool {
+	if err != nil {
+		err, ok := err.(clientcmd.ClientError)
+		return ok && err.IsCertificateAuthorityUnknown()
+	}
+	return false
 }
 
 func whoami(clientCfg *kclient.Config) (*api.User, error) {

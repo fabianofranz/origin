@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/openshift/origin/pkg/cmd/cli/cmd/setup"
 	osclientcmd "github.com/openshift/origin/pkg/cmd/util/clientcmd"
 )
 
@@ -33,31 +34,19 @@ func NewCmdLogin(f *osclientcmd.Factory, in io.Reader, out io.Writer) *cobra.Com
 		Short: "Logs in and returns a session token",
 		Long:  longDescription,
 		Run: func(cmd *cobra.Command, args []string) {
-			var setup ClientSetup
-
-			setup = OscClientSetup{
-				reader:           in,
-				factory:          f,
-				cmd:              cmd,
-				username:         options.username,
-				password:         options.password,
-				server:           options.server,
-				context:          options.context,
-				serverSetupInfo:  &ServerSetupInfo{},
-				authSetupInfo:    &AuthSetupInfo{},
-				projectSetupInfo: &ProjectSetupInfo{},
-			}
-
 			// validate flags
 			err := options.validate()
 			checkErr(err)
 
+			var clientSetup setup.ClientSetup
+			clientSetup = setup.NewOscClientSetup(f, cmd, in, options.username, options.password, options.server, options.context)
+
 			// set up the server
-			serverInfo, err := setup.DetermineServerInfo()
+			serverInfo, err := clientSetup.DetermineServerInfo()
 			checkErr(err)
 
 			// set up an auth
-			authInfo, err := setup.DetermineAuthInfo()
+			authInfo, err := clientSetup.DetermineAuthInfo()
 			checkErr(err)
 			var loggedMsg string
 			if authInfo.NewAuth {
@@ -68,7 +57,7 @@ func NewCmdLogin(f *osclientcmd.Factory, in io.Reader, out io.Writer) *cobra.Com
 			fmt.Printf(loggedMsg, serverInfo.URL, authInfo.FullName)
 
 			// set up projects
-			projectInfo, err := setup.DetermineProjectInfo()
+			projectInfo, err := clientSetup.DetermineProjectInfo()
 			checkErr(err)
 
 			if len(projectInfo.Projects) > 0 {
@@ -77,7 +66,7 @@ func NewCmdLogin(f *osclientcmd.Factory, in io.Reader, out io.Writer) *cobra.Com
 			fmt.Printf("Using project '%v'\n", projectInfo.ProjectInUse)
 
 			// merge configs
-			err = setup.MergeConfig()
+			err = clientSetup.MergeConfig()
 			checkErr(err)
 		},
 	}
