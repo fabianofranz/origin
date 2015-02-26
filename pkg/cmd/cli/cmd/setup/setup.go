@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/golang/glog"
+	glog "github.com/openshift/origin/pkg/cmd/util/log"
 	"github.com/spf13/cobra"
 
 	"github.com/openshift/origin/pkg/client"
@@ -91,7 +91,7 @@ func (c OscClientSetup) DetermineServerInfo() (*ServerSetupInfo, error) {
 		if serverFlag != nil {
 			serverFlag.Value.Set(promptedServer)
 			if err := c.cmd.Execute(); err != nil {
-				os.Exit(1)
+				glog.Fatal(err)
 			}
 			os.Exit(0)
 		}
@@ -164,7 +164,7 @@ func (c OscClientSetup) DetermineAuthInfo() (*AuthSetupInfo, error) {
 	if err != nil {
 		// certificate issue, prompt to user decide about connecting insecurely
 		if isServerCertificateSignedByUnknownAuthority(err) {
-			fmt.Println("The server uses a certificate signed by unknown authority. You can bypass the certificate check but it will make all connections insecure.")
+			glog.Warning("The server uses a certificate signed by unknown authority. You can bypass the certificate check but it will make all connections insecure.")
 
 			insecure := util.PromptForBool(os.Stdin, "Use insecure connections [y/N]? ")
 			insecureFlag := c.cmd.Flags().Lookup("insecure-skip-tls-verify")
@@ -173,7 +173,7 @@ func (c OscClientSetup) DetermineAuthInfo() (*AuthSetupInfo, error) {
 				c.serverSetupInfo.Insecure = insecure
 				insecureFlag.Value.Set(strconv.FormatBool(insecure))
 				if err := c.cmd.Execute(); err != nil {
-					os.Exit(1)
+					glog.Fatal(err)
 				}
 				os.Exit(0)
 			}

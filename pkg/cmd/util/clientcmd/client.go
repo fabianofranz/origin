@@ -1,14 +1,12 @@
 package clientcmd
 
 import (
-	"fmt"
 	"net/http"
-	"os"
+
+	glog "github.com/openshift/origin/pkg/cmd/util/log"
 )
 
 const (
-	unauthorizedExitCode = 1
-
 	unauthorizedErrorMessage = `Your session has expired. Use the following command to log in again:
   osc login
 `
@@ -26,8 +24,7 @@ func (client *statusHandlerClient) Do(req *http.Request) (*http.Response, error)
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		fmt.Print(unauthorizedErrorMessage)
-		os.Exit(unauthorizedExitCode)
+		glog.Fatal(unauthorizedErrorMessage)
 	}
 
 	return resp, err

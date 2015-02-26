@@ -9,6 +9,7 @@ import (
 
 	"github.com/openshift/origin/pkg/cmd/cli/cmd/setup"
 	osclientcmd "github.com/openshift/origin/pkg/cmd/util/clientcmd"
+	glog "github.com/openshift/origin/pkg/cmd/util/log"
 )
 
 type loginOptions struct {
@@ -50,24 +51,26 @@ func NewCmdLogin(f *osclientcmd.Factory, in io.Reader, out io.Writer) *cobra.Com
 			checkErr(err)
 			var loggedMsg string
 			if authInfo.NewAuth {
-				loggedMsg = "Logged into '%v' as '%v'\n"
+				loggedMsg = "Logged into '%v' as '%v'"
 			} else {
-				loggedMsg = "Already logged into '%v' as '%v'\n"
+				loggedMsg = "Already logged into '%v' as '%v'"
 			}
-			fmt.Printf(loggedMsg, serverInfo.URL, authInfo.FullName)
+			glog.Infof(loggedMsg, serverInfo.URL, authInfo.FullName)
 
 			// set up projects
 			projectInfo, err := clientSetup.DetermineProjectInfo()
 			checkErr(err)
 
 			if len(projectInfo.Projects) > 0 {
-				fmt.Printf("Your projects are: %v. You can switch between them at any time using 'osc project <project-name>'.\n", strings.Join(projectInfo.Projects, ", ")) // TODO parameterize cmd name
+				glog.Warningf("Your projects are: %v. You can switch between them at any time using 'osc project <project-name>'.", strings.Join(projectInfo.Projects, ", ")) // TODO parameterize cmd name
 			}
-			fmt.Printf("Using project '%v'\n", projectInfo.ProjectInUse)
+			glog.Infof("Using project '%v'.", projectInfo.ProjectInUse)
 
 			// merge configs
 			err = clientSetup.MergeConfig()
 			checkErr(err)
+
+			glog.Success("Done! Run 'osc --help' for more information about client commands.")
 		},
 	}
 

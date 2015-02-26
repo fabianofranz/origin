@@ -3,7 +3,7 @@ package cmd
 import (
 	"os"
 
-	"github.com/golang/glog"
+	glog "github.com/openshift/origin/pkg/cmd/util/log"
 	"github.com/spf13/cobra"
 )
 
