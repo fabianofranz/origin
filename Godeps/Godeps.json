@@ -5,6 +5,27 @@
 		"./..."
 	],
 	"Deps": [
+        {
+			"ImportPath": "github.com/agl/ed25519",
+			"Rev": "278e1ec8e8a6e017cd07577924d6766039146ced"
+        },
+		{
+			"ImportPath": "github.com/boltdb/bolt",
+			"Comment": "v1.0-119-g90fef38",
+			"Rev": "90fef389f98027ca55594edd7dbd6e7f3926fdad"
+        },
+		{
+			"ImportPath": "github.com/tent/canonical-json-go",
+			"Rev": "96e4ba3a7613a1216cbd1badca4efe382adea337"
+        },
+		{
+			"ImportPath": "github.com/flynn/go-tuf",
+			"Rev": "69ec51cc76d2b025e819174cb073c46f1629390e"
+        },
+        {
+            "ImportPath": "github.com/flynn/go-tuf/client",
+            "Rev": "69ec51cc76d2b025e819174cb073c46f1629390e"
+        },
 		{
 			"ImportPath": "bitbucket.org/ww/goautoneg",
 			"Comment": "null-5",
