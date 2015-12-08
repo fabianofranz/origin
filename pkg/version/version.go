@@ -1,7 +1,12 @@
 package version
 
 import (
+	"encoding/hex"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	etcdversion "github.com/coreos/etcd/version"
 	updater "github.com/flynn/go-tuf/client"
@@ -54,34 +59,27 @@ func (info Info) String() string {
 	return version
 }
 
+type tmpFile struct {
+	*os.File
+}
+
+func (t *tmpFile) Delete() error {
+	t.Close()
+	return os.Remove(t.Name())
+}
+
 // NewVersionCommand creates a command for displaying the version of this binary
 func NewVersionCommand(basename string, printEtcdVersion bool) *cobra.Command {
 	baseUpdaterURL := "http://ocupdater-ffranz.rhcloud.com/updates/repository"
-	rootKeys := []*data.Key{
-		&data.Key{
-			"ed25519",
-			data.KeyValue{
-				[]byte("7b7e9101b855186da8c6072df197162c1f0fa641bcf29dc638a5e327002287ae"),
-				[]byte{},
-			},
-		},
-		&data.Key{
-			"ed25519",
-			data.KeyValue{
-				[]byte("cf488bab850635f2e9993c3ed4668b4b433ffbb8f1aaf750f97d7a27c2a0c1a9"),
-				[]byte{},
-			},
-		},
-	}
+	pubKey, _ := hex.DecodeString("c9415ba32c55b3242f6ec5db32be978b3c947654e74dca8f3fc804664f514ec7")
 
-	check := false
 	update := false
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Display version",
 		Run: func(c *cobra.Command, args []string) {
 			switch {
-			case check:
+			case update:
 				localStore := updater.MemoryLocalStore()
 				remoteStore, err := updater.HTTPRemoteStore(baseUpdaterURL, &updater.HTTPRemoteOptions{})
 				if err != nil {
@@ -89,21 +87,66 @@ func NewVersionCommand(basename string, printEtcdVersion bool) *cobra.Command {
 					return
 				}
 				client := updater.NewClient(localStore, remoteStore)
-				if err := client.Init(rootKeys, len(rootKeys)); err != nil {
+				rootKey := &data.Key{
+					"ed25519",
+					data.KeyValue{
+						[]byte(pubKey),
+						nil,
+					},
+				}
+				if err := client.Init([]*data.Key{rootKey}, 1); err != nil {
 					fmt.Println("Error initializing client: " + err.Error())
 					return
 				}
-				files, err := client.Targets()
+
+				fmt.Print("Checking for updates... ")
+				if _, err := client.Update(); err != nil {
+					if updater.IsLatestSnapshot(err) {
+						fmt.Println("already up-to-date!")
+						return
+					}
+					fmt.Println("\nError checking updates: " + err.Error())
+					return
+				}
+				fmt.Println("update available")
+
+				//fmt.Println("Listing targets...")
+				targets, err := client.Targets()
 				if err != nil {
 					fmt.Println("Error listing targets: " + err.Error())
 					return
 				}
-				for _, file := range files {
-					fmt.Println(file.HashAlgorithms())
+				for path, meta := range targets {
+					fmt.Printf("%v size: %v bytes\n", path, meta.Length)
 				}
-				return
 
-			case update:
+				fmt.Print("Downloading... ")
+				tempFile, err := ioutil.TempFile("", "oc")
+				if err != nil {
+					fmt.Println("\nError creating file: " + err.Error())
+					return
+				}
+				tmp := tmpFile{tempFile}
+				if err := client.Download("/oc", &tmp); err != nil {
+					fmt.Println("\nError downloading update: ", err.Error())
+				}
+				fmt.Println("downloaded")
+				if _, err := tmp.Seek(0, os.SEEK_SET); err != nil {
+					fmt.Println("Error creating file: " + err.Error())
+				}
+
+				dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+				out, err := os.Create(dir + "/oc")
+				if err != nil {
+					//fmt.Println("Error creating file: " + err.Error())
+					return
+				}
+				if _, err = io.Copy(out, tempFile); err != nil {
+					//fmt.Println("Error copying file: " + err.Error())
+					return
+				}
+				defer tmp.Delete()
+				defer out.Close()
 				return
 
 			default:
@@ -115,7 +158,6 @@ func NewVersionCommand(basename string, printEtcdVersion bool) *cobra.Command {
 			}
 		},
 	}
-	cmd.Flags().BoolVar(&check, "check", check, "Check if there is a new version of this client available")
 	cmd.Flags().BoolVar(&update, "update", update, "Auto-update this client if there is a new version available")
 	return cmd
 }
