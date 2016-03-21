@@ -129,7 +129,7 @@ func TestPolicyBasedRestrictionOfBuildConfigCreateAndInstantiateByStrategy(t *te
 }
 
 func buildStrategyTypes() []string {
-	return []string{"source", "docker", "custom"}
+	return []string{"source", "docker", "custom", "jenkinspipeline"}
 }
 
 func setupBuildStrategyTest(t *testing.T, includeControllers bool) (clusterAdminClient, projectAdminClient, projectEditorClient *client.Client) {
@@ -236,6 +236,8 @@ func strategyForType(t *testing.T, strategy string) buildapi.BuildStrategy {
 	case "source":
 		buildStrategy.SourceStrategy = &buildapi.SourceBuildStrategy{}
 		buildStrategy.SourceStrategy.From.Name = "builderimage:latest"
+	case "jenkinspipeline":
+		buildStrategy.JenkinsPipelineStrategy = &buildapi.JenkinsPipelineBuildStrategy{}
 	default:
 		t.Fatalf("unknown strategy: %#v", strategy)
 	}
