@@ -288,6 +288,21 @@ type MasterConfig struct {
 
 	// VolumeConfig contains options for configuring volumes on the node.
 	VolumeConfig MasterVolumeConfig
+
+	// JenkinsPipelineConfig holds information about the default Jenkins template
+	// used for JenkinsPipeline build strategy.
+	JenkinsPipelineConfig JenkinsPipelineConfig
+}
+
+// JenkinsPipelineConfig holds configuration for the Jenkins pipeline strategy
+type JenkinsPipelineConfig struct {
+	// Namespace contains the namespace name where the Jenkins template is stored
+	Namespace string
+	// TemplateName is the name of the default Jenkins template
+	TemplateName string
+	// ServiceName is the name of the Jenkins service OpenShift use for Jenkins
+	// pipeline
+	ServiceName string
 }
 
 type ImagePolicyConfig struct {
