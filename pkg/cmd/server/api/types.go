@@ -291,7 +291,7 @@ type MasterConfig struct {
 
 	// JenkinsPipelineConfig holds information about the default Jenkins template
 	// used for JenkinsPipeline build strategy.
-	JenkinsPipelineConfig JenkinsPipelineConfig
+	JenkinsPipelineConfig *JenkinsPipelineConfig
 }
 
 // JenkinsPipelineConfig holds configuration for the Jenkins pipeline strategy
