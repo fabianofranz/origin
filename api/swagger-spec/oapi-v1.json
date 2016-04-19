@@ -17703,7 +17703,7 @@
      },
      "jenkinsPipelineStrategy": {
       "$ref": "v1.JenkinsPipelineBuildStrategy",
-      "description": "JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy This strategy is experimental."
+      "description": "JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy. This strategy is experimental."
      }
     }
    },

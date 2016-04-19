@@ -145,6 +145,18 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 				},
 			},
 		},
+		{
+			ObjectMeta: kapi.ObjectMeta{
+				Name: BuildStrategyJenkinsPipelineRoleName,
+			},
+			Rules: []authorizationapi.PolicyRule{
+				{
+					APIGroups: []string{api.GroupName},
+					Verbs:     sets.NewString("create"),
+					Resources: sets.NewString(authorizationapi.JenkinsPipelineBuildResource),
+				},
+			},
+		},
 
 		{
 			ObjectMeta: kapi.ObjectMeta{
@@ -169,10 +181,6 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 						authorizationapi.OpenshiftExposedGroupName,
 						authorizationapi.PermissionGrantingGroupName,
 						"projects",
-						authorizationapi.DockerBuildResource,
-						authorizationapi.SourceBuildResource,
-						authorizationapi.CustomBuildResource,
-						authorizationapi.JenkinsPipelineBuildResource,
 						"deploymentconfigs/scale",
 						"imagestreams/secrets",
 					),
@@ -234,10 +242,6 @@ func GetBootstrapClusterRoles() []authorizationapi.ClusterRole {
 					Verbs:     sets.NewString("get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"),
 					Resources: sets.NewString(
 						authorizationapi.OpenshiftExposedGroupName,
-						authorizationapi.DockerBuildResource,
-						authorizationapi.SourceBuildResource,
-						authorizationapi.CustomBuildResource,
-						authorizationapi.JenkinsPipelineBuildResource,
 						"deploymentconfigs/scale",
 						"imagestreams/secrets",
 					),
@@ -998,6 +1002,11 @@ func GetBootstrapClusterRoleBindings() []authorizationapi.ClusterRoleBinding {
 		{
 			ObjectMeta: kapi.ObjectMeta{Name: BuildStrategySourceRoleBindingName},
 			RoleRef:    kapi.ObjectReference{Name: BuildStrategySourceRoleName},
+			Subjects:   []kapi.ObjectReference{{Kind: authorizationapi.SystemGroupKind, Name: AuthenticatedGroup}},
+		},
+		{
+			ObjectMeta: kapi.ObjectMeta{Name: BuildStrategyJenkinsPipelineRoleBindingName},
+			RoleRef:    kapi.ObjectReference{Name: BuildStrategyJenkinsPipelineRoleName},
 			Subjects:   []kapi.ObjectReference{{Kind: authorizationapi.SystemGroupKind, Name: AuthenticatedGroup}},
 		},
 	}

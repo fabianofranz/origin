@@ -334,7 +334,7 @@ type BuildStrategy struct {
 	// CustomStrategy holds the parameters to the Custom build strategy
 	CustomStrategy *CustomBuildStrategy
 
-	// JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy
+	// JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy.
 	// This strategy is experimental.
 	JenkinsPipelineStrategy *JenkinsPipelineBuildStrategy
 }

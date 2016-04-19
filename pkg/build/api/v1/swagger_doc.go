@@ -207,7 +207,7 @@ var map_BuildStrategy = map[string]string{
 	"dockerStrategy":          "DockerStrategy holds the parameters to the Docker build strategy.",
 	"sourceStrategy":          "SourceStrategy holds the parameters to the Source build strategy.",
 	"customStrategy":          "CustomStrategy holds the parameters to the Custom build strategy",
-	"jenkinsPipelineStrategy": "JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy This strategy is experimental.",
+	"jenkinsPipelineStrategy": "JenkinsPipelineStrategy holds the parameters to the Jenkins Pipeline build strategy. This strategy is experimental.",
 }
 
 func (BuildStrategy) SwaggerDoc() map[string]string {

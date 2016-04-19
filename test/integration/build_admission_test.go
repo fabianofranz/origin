@@ -202,7 +202,7 @@ func setupBuildStrategyTest(t *testing.T, includeControllers bool) (clusterAdmin
 
 func removeBuildStrategyRoleResources(t *testing.T, clusterAdminClient, projectAdminClient, projectEditorClient *client.Client) {
 	// remove resources from role so that certain build strategies are forbidden
-	for _, role := range []string{bootstrappolicy.BuildStrategyCustomRoleName, bootstrappolicy.BuildStrategyDockerRoleName, bootstrappolicy.BuildStrategySourceRoleName} {
+	for _, role := range []string{bootstrappolicy.BuildStrategyCustomRoleName, bootstrappolicy.BuildStrategyDockerRoleName, bootstrappolicy.BuildStrategySourceRoleName, bootstrappolicy.BuildStrategyJenkinsPipelineRoleName} {
 		remove := &policy.RoleModificationOptions{
 			RoleNamespace:       "",
 			RoleName:            role,
@@ -215,13 +215,16 @@ func removeBuildStrategyRoleResources(t *testing.T, clusterAdminClient, projectA
 	}
 
 	if err := testutil.WaitForPolicyUpdate(projectEditorClient, testutil.Namespace(), "create", buildapi.Resource(authorizationapi.DockerBuildResource), false); err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if err := testutil.WaitForPolicyUpdate(projectEditorClient, testutil.Namespace(), "create", buildapi.Resource(authorizationapi.SourceBuildResource), false); err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	if err := testutil.WaitForPolicyUpdate(projectEditorClient, testutil.Namespace(), "create", buildapi.Resource(authorizationapi.CustomBuildResource), false); err != nil {
-		t.Error(err)
+		t.Fatal(err)
+	}
+	if err := testutil.WaitForPolicyUpdate(projectEditorClient, testutil.Namespace(), "create", buildapi.Resource(authorizationapi.JenkinsPipelineBuildResource), false); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -132,7 +132,7 @@ func validateBuildSpec(spec *buildapi.BuildSpec, fldPath *field.Path) field.Erro
 
 const (
 	maxDockerfileLengthBytes  = 60 * 1000
-	maxJenkinsfileLengthBytes = 60 * 1000
+	maxJenkinsfileLengthBytes = 100 * 1000
 )
 
 func hasProxy(source *buildapi.GitBuildSource) bool {

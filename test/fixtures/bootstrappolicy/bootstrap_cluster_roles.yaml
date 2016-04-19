@@ -201,6 +201,19 @@ items:
   kind: ClusterRole
   metadata:
     creationTimestamp: null
+    name: system:build-strategy-jenkinspipeline
+  rules:
+  - apiGroups:
+    - ""
+    attributeRestrictions: null
+    resources:
+    - builds/jenkinspipeline
+    verbs:
+    - create
+- apiVersion: v1
+  kind: ClusterRole
+  metadata:
+    creationTimestamp: null
     name: admin
   rules:
   - apiGroups:
@@ -242,11 +255,7 @@ items:
     - buildlogs
     - builds
     - builds/clone
-    - builds/custom
-    - builds/docker
-    - builds/jenkinspipeline
     - builds/log
-    - builds/source
     - deploymentconfigrollbacks
     - deploymentconfigs
     - deploymentconfigs/log
@@ -423,11 +432,7 @@ items:
     - buildlogs
     - builds
     - builds/clone
-    - builds/custom
-    - builds/docker
-    - builds/jenkinspipeline
     - builds/log
-    - builds/source
     - deploymentconfigrollbacks
     - deploymentconfigs
     - deploymentconfigs/log
