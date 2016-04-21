@@ -413,7 +413,7 @@ type SourceBuildStrategy struct {
 // This strategy is experimental.
 type JenkinsPipelineBuildStrategy struct {
 	// JenkinsfilePath is the optional path of the Jenkinsfile that will be used to configure the pipeline
-	// relative to the root of the context (contextDir).If both JenkinsfilePath & Jenkinsfile are
+	// relative to the root of the context (contextDir). If both JenkinsfilePath & Jenkinsfile are
 	// both not specified, this defaults to Jenkinsfile in the root of the specified contextDir.
 	JenkinsfilePath string `json:"jenkinsfilePath,omitempty"`
 
