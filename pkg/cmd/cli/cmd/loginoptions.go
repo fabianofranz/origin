@@ -126,7 +126,7 @@ func (o *LoginOptions) getClientConfig() (*restclient.Config, error) {
 		return nil, err
 	}
 
-	result := osClient.Get().AbsPath("/").Do()
+	result := osClient.Get().AbsPath("/apis").Do()
 	if result.Error() != nil {
 		switch {
 		case o.InsecureTLS:
@@ -158,6 +158,10 @@ func (o *LoginOptions) getClientConfig() (*restclient.Config, error) {
 				clientConfig.CAData = nil
 				fmt.Fprintln(o.Out)
 			}
+
+		// TLS oversized record which usually means the server only supports "http"
+		case clientcmd.IsTLSOversizedRecord(result.Error()):
+			return nil, fmt.Errorf(clientcmd.GetPrettyMessageFor(result.Error()))
 
 		default:
 			return nil, result.Error()
