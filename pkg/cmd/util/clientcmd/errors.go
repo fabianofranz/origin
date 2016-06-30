@@ -9,18 +9,18 @@ import (
 )
 
 const (
-	unknownReason                     = 0
-	noServerFoundReason               = 1
-	certificateAuthorityUnknownReason = 2
-	configurationInvalidReason        = 3
-	tlsOversizedRecordReason          = 4
+	unknownReason = iota
+	noServerFoundReason
+	certificateAuthorityUnknownReason
+	configurationInvalidReason
+	tlsOversizedRecordReason
 
 	certificateAuthorityUnknownMsg = "The server uses a certificate signed by unknown authority. You may need to use the --certificate-authority flag to provide the path to a certificate file for the certificate authority, or --insecure-skip-tls-verify to bypass the certificate check and use insecure connections."
 	notConfiguredMsg               = `The client is not configured. You need to run the login command in order to create a default config for your server and credentials:
   oc login
 You can also run this command again providing the path to a config file directly, either through the --config flag of the KUBECONFIG environment variable.
 `
-	tlsOversizedRecordMsg          = `Unable to connect to server using TLS, cause: %s.
+	tlsOversizedRecordMsg = `Unable to connect to server using TLS, cause: %s.
 Ensure the specified server supports HTTPS.`
 )
 

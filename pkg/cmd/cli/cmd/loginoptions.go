@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -92,14 +94,31 @@ func (o *LoginOptions) getClientConfig() (*restclient.Config, error) {
 		}
 	}
 
+	// fixServerURL will normalize the server URL as provided by user or config to a format expected, and will
+	// also try to make the sure the server is reachable and the port is right (e.g. will try 8443 if 443 isn't reachable)
+	if err := o.fixServerURL(clientConfig); err != nil {
+		return nil, err
+	}
+
+	// check for matching api version
+	if !o.APIVersion.IsEmpty() {
+		clientConfig.GroupVersion = &o.APIVersion
+	}
+
+	o.Config = clientConfig
+	return o.Config, nil
+}
+
+func (o *LoginOptions) fixServerURL(clientConfig *restclient.Config) error {
 	// normalize the provided server to a format expected by config
 	serverNormalized, err := config.NormalizeServerURL(o.Server)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	o.Server = serverNormalized
 	clientConfig.Host = o.Server
 
+	// use a certificate authority file if available
 	if len(o.CAFile) > 0 {
 		clientConfig.CAFile = o.CAFile
 
@@ -120,12 +139,11 @@ func (o *LoginOptions) getClientConfig() (*restclient.Config, error) {
 		}
 	}
 
-	// ping to check if server is reachable
+	// ping "/apis" to check if server is reachable
 	osClient, err := client.New(clientConfig)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
 	result := osClient.Get().AbsPath("/apis").Do()
 	if result.Error() != nil {
 		switch {
@@ -151,7 +169,7 @@ func (o *LoginOptions) getClientConfig() (*restclient.Config, error) {
 
 				clientConfig.Insecure = cmdutil.PromptForBool(os.Stdin, o.Out, "Use insecure connections? (y/n): ")
 				if !clientConfig.Insecure {
-					return nil, fmt.Errorf(clientcmd.GetPrettyMessageFor(result.Error()))
+					return fmt.Errorf(clientcmd.GetPrettyMessageFor(result.Error()))
 				}
 				// insecure, clear CA info
 				clientConfig.CAFile = ""
@@ -161,20 +179,31 @@ func (o *LoginOptions) getClientConfig() (*restclient.Config, error) {
 
 		// TLS oversized record which usually means the server only supports "http"
 		case clientcmd.IsTLSOversizedRecord(result.Error()):
-			return nil, fmt.Errorf(clientcmd.GetPrettyMessageFor(result.Error()))
+			return fmt.Errorf(clientcmd.GetPrettyMessageFor(result.Error()))
 
 		default:
-			return nil, result.Error()
+			// try alternative ports before error out
+			if parsedURL, err := url.Parse(o.Server); err == nil {
+				if parsedHost, parsedPort, err := net.SplitHostPort(parsedURL.Host); err == nil {
+					alternativePortFor := map[string]string{"443": "8443"}
+					if alternativePort, ok := alternativePortFor[parsedPort]; ok {
+						parsedURL.Host = fmt.Sprintf("%s:%s", parsedHost, alternativePort)
+						backupServer := o.Server
+						o.Server = parsedURL.String()
+						clientConfig.Host = o.Server
+						if err := o.fixServerURL(clientConfig); err == nil {
+							return nil
+						}
+						o.Server = backupServer
+						clientConfig.Host = o.Server
+					}
+				}
+			}
+			return result.Error()
 		}
 	}
 
-	// check for matching api version
-	if !o.APIVersion.IsEmpty() {
-		clientConfig.GroupVersion = &o.APIVersion
-	}
-
-	o.Config = clientConfig
-	return o.Config, nil
+	return nil
 }
 
 // getMatchingClusters examines the kubeconfig for all clusters that point to the same server
