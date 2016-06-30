@@ -102,7 +102,7 @@ func (o *LoginOptions) Complete(f *osclientcmd.Factory, cmd *cobra.Command, args
 		o.StartingKubeConfig = kclientcmdapi.NewConfig()
 	}
 
-	addr := flagtypes.Addr{Value: "localhost:8443", DefaultScheme: "https", DefaultPort: 8443, AllowPrefix: true}.Default()
+	addr := flagtypes.Addr{Value: "localhost:8443", DefaultScheme: "https", AllowPrefix: true}.Default()
 
 	if serverFlag := kcmdutil.GetFlagString(cmd, "server"); len(serverFlag) > 0 {
 		if err := addr.Set(serverFlag); err != nil {
