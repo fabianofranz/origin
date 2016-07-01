@@ -2,8 +2,11 @@ package cmd
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -19,6 +22,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/sets"
 	"k8s.io/kubernetes/pkg/util/term"
 
+	"github.com/golang/glog"
 	"github.com/openshift/origin/pkg/client"
 	"github.com/openshift/origin/pkg/cmd/cli/config"
 	cmdutil "github.com/openshift/origin/pkg/cmd/util"
@@ -94,34 +98,82 @@ func (o *LoginOptions) getClientConfig() (*restclient.Config, error) {
 		}
 	}
 
-	// fixServerURL will normalize the server URL as provided by user or config to a format expected, and will
-	// also try to make the sure the server is reachable and the port is right (e.g. will try 8443 if 443 isn't reachable)
-	if err := o.fixServerURL(clientConfig); err != nil {
+	// completeClientConfig checks if the provided host is reachable and if so, completes the clientConfig with
+	// CA data and other information required to make connections to the given server
+	if err := o.completeClientConfig(clientConfig); err != nil {
 		return nil, err
 	}
-
-	// check for matching api version
-	if !o.APIVersion.IsEmpty() {
-		clientConfig.GroupVersion = &o.APIVersion
-	}
-
 	o.Config = clientConfig
+
 	return o.Config, nil
 }
 
-func (o *LoginOptions) fixServerURL(clientConfig *restclient.Config) error {
-	// normalize the provided server to a format expected by config
-	serverNormalized, err := config.NormalizeServerURL(o.Server)
-	if err != nil {
-		return err
+func (o *LoginOptions) completeClientConfig(clientConfig *restclient.Config) error {
+	if err := o.normalizeAndDialToServer(); err != nil {
+		clientConfig.Host = o.Server
+
+		switch {
+		case o.InsecureTLS:
+			clientConfig.Insecure = true
+			// insecure, clear CA info
+			clientConfig.CAFile = ""
+			clientConfig.CAData = nil
+		default:
+			switch err.(type) {
+			// certificate authority unknown, prompt user for insecure connection
+			case x509.UnknownAuthorityError:
+				// check to see if we already have a cluster stanza that tells us to use --insecure for this particular server.  If we don't, then prompt
+				clientConfigToTest := *clientConfig
+				clientConfigToTest.Insecure = true
+				matchingClusters := getMatchingClusters(clientConfigToTest, *o.StartingKubeConfig)
+
+				if len(matchingClusters) > 0 {
+					clientConfig.Insecure = true
+
+				} else if term.IsTerminal(o.Reader) {
+					fmt.Fprintln(o.Out, "The server uses a certificate signed by an unknown authority.")
+					fmt.Fprintln(o.Out, "You can bypass the certificate check, but any data you send to the server could be intercepted by others.")
+
+					clientConfig.Insecure = cmdutil.PromptForBool(os.Stdin, o.Out, "Use insecure connections? (y/n): ")
+					if !clientConfig.Insecure {
+						return fmt.Errorf(clientcmd.GetPrettyMessageFor(err))
+					}
+					// insecure, clear CA info
+					clientConfig.CAFile = ""
+					clientConfig.CAData = nil
+					fmt.Fprintln(o.Out)
+				}
+			// TLS record header errors, like oversized record which usually means the server only supports "http"
+			case tls.RecordHeaderError:
+				return fmt.Errorf(clientcmd.GetPrettyMessageFor(err))
+			default:
+				// try alternative ports before error out
+				if parsedURL, err := url.Parse(o.Server); err == nil {
+					if parsedHost, parsedPort, err := net.SplitHostPort(parsedURL.Host); err == nil {
+						alternativePortFor := map[string]string{"443": "8443"}
+						if alternativePort, ok := alternativePortFor[parsedPort]; ok {
+							parsedURL.Host = fmt.Sprintf("%s:%s", parsedHost, alternativePort)
+							backupServer := o.Server
+							o.Server = parsedURL.String()
+							if err := o.normalizeAndDialToServer(); err == nil {
+								return nil
+							}
+							o.Server = backupServer
+							clientConfig.Host = o.Server
+						}
+					}
+				}
+				return err
+			}
+		}
 	}
-	o.Server = serverNormalized
+
+	// at this point we have a host, normalized
 	clientConfig.Host = o.Server
 
-	// use a certificate authority file if available
+	// load cartificate authority info to the client config if we have it
 	if len(o.CAFile) > 0 {
 		clientConfig.CAFile = o.CAFile
-
 	} else {
 		// check all cluster stanzas to see if we already have one with this URL that contains a client cert
 		for _, cluster := range o.StartingKubeConfig.Clusters {
@@ -130,7 +182,6 @@ func (o *LoginOptions) fixServerURL(clientConfig *restclient.Config) error {
 					clientConfig.CAFile = cluster.CertificateAuthority
 					break
 				}
-
 				if len(cluster.CertificateAuthorityData) > 0 {
 					clientConfig.CAData = cluster.CertificateAuthorityData
 					break
@@ -139,70 +190,85 @@ func (o *LoginOptions) fixServerURL(clientConfig *restclient.Config) error {
 		}
 	}
 
-	// ping "/apis" to check if server is reachable
-	osClient, err := client.New(clientConfig)
+	// check for matching api version
+	if !o.APIVersion.IsEmpty() {
+		clientConfig.GroupVersion = &o.APIVersion
+	}
+
+	return nil
+}
+
+// normalizeAndDialToServer takes the Server URL string, normalizes to the format expected and
+// does a TCP dial to make sure the server is reachable
+func (o *LoginOptions) normalizeAndDialToServer() error {
+	// normalize the provided server to a format expected by config
+	serverNormalized, err := config.NormalizeServerURL(o.Server)
 	if err != nil {
 		return err
 	}
-	result := osClient.Get().AbsPath("/apis").Do()
-	if result.Error() != nil {
-		switch {
-		case o.InsecureTLS:
-			clientConfig.Insecure = true
-			// insecure, clear CA info
-			clientConfig.CAFile = ""
-			clientConfig.CAData = nil
+	serverURL, err := url.Parse(serverNormalized)
+	if err != nil {
+		return err
+	}
 
-		// certificate issue, prompt user for insecure connection
-		case clientcmd.IsCertificateAuthorityUnknown(result.Error()):
-			// check to see if we already have a cluster stanza that tells us to use --insecure for this particular server.  If we don't, then prompt
-			clientConfigToTest := *clientConfig
-			clientConfigToTest.Insecure = true
-			matchingClusters := getMatchingClusters(clientConfigToTest, *o.StartingKubeConfig)
+	// load CA data if we have it
+	var certificateAuthorityData string
+	if len(o.CAFile) > 0 {
+		certificateAuthorityDataFromFile, err := ioutil.ReadFile(o.CAFile)
+		if err != nil {
+			return err
+		}
+		certificateAuthorityData = string(certificateAuthorityDataFromFile)
 
-			if len(matchingClusters) > 0 {
-				clientConfig.Insecure = true
-
-			} else if term.IsTerminal(o.Reader) {
-				fmt.Fprintln(o.Out, "The server uses a certificate signed by an unknown authority.")
-				fmt.Fprintln(o.Out, "You can bypass the certificate check, but any data you send to the server could be intercepted by others.")
-
-				clientConfig.Insecure = cmdutil.PromptForBool(os.Stdin, o.Out, "Use insecure connections? (y/n): ")
-				if !clientConfig.Insecure {
-					return fmt.Errorf(clientcmd.GetPrettyMessageFor(result.Error()))
-				}
-				// insecure, clear CA info
-				clientConfig.CAFile = ""
-				clientConfig.CAData = nil
-				fmt.Fprintln(o.Out)
-			}
-
-		// TLS oversized record which usually means the server only supports "http"
-		case clientcmd.IsTLSOversizedRecord(result.Error()):
-			return fmt.Errorf(clientcmd.GetPrettyMessageFor(result.Error()))
-
-		default:
-			// try alternative ports before error out
-			if parsedURL, err := url.Parse(o.Server); err == nil {
-				if parsedHost, parsedPort, err := net.SplitHostPort(parsedURL.Host); err == nil {
-					alternativePortFor := map[string]string{"443": "8443"}
-					if alternativePort, ok := alternativePortFor[parsedPort]; ok {
-						parsedURL.Host = fmt.Sprintf("%s:%s", parsedHost, alternativePort)
-						backupServer := o.Server
-						o.Server = parsedURL.String()
-						clientConfig.Host = o.Server
-						if err := o.fixServerURL(clientConfig); err == nil {
-							return nil
-						}
-						o.Server = backupServer
-						clientConfig.Host = o.Server
+	} else {
+		// check all cluster stanzas to see if we already have one with this URL that contains a client cert
+		for _, cluster := range o.StartingKubeConfig.Clusters {
+			if cluster.Server == serverNormalized {
+				if len(cluster.CertificateAuthority) > 0 {
+					certificateAuthorityDataFromFile, err := ioutil.ReadFile(cluster.CertificateAuthority)
+					if err != nil {
+						return err
 					}
+					certificateAuthorityData = string(certificateAuthorityDataFromFile)
+					break
+				}
+				if len(cluster.CertificateAuthorityData) > 0 {
+					certificateAuthorityData = string(cluster.CertificateAuthorityData)
+					break
 				}
 			}
-			return result.Error()
 		}
 	}
 
+	// try a tcp connection to check if server is reachable
+	switch serverURL.Scheme {
+	case "https":
+		tlsConfig := &tls.Config{}
+		rootCAsN := 0
+		if len(certificateAuthorityData) > 0 {
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM([]byte(certificateAuthorityData)) {
+				return fmt.Errorf("could not use the provided CA cert file/data")
+			}
+			tlsConfig.RootCAs = pool
+			rootCAsN = len(pool.Subjects())
+		}
+		glog.V(8).Infof("Dialing TCP connection to %s with TLS and %d root CA's", serverURL.Host, rootCAsN)
+		conn, err := tls.Dial("tcp", serverURL.Host, tlsConfig)
+		if err != nil {
+			return err
+		}
+		conn.Close()
+	default:
+		glog.V(8).Infof("Dialing TCP connection to %s", serverURL.Host)
+		conn, err := net.Dial("tcp", serverURL.Host)
+		if err != nil {
+			return err
+		}
+		conn.Close()
+	}
+
+	o.Server = serverNormalized
 	return nil
 }
 
