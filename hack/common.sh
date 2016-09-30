@@ -3,7 +3,7 @@
 # This script provides common script functions for the hacks
 # Requires OS_ROOT to be set
 
-readonly OS_BUILD_ENV_GOLANG="${OS_BUILD_ENV_GOLANG:-1.6}"
+readonly OS_BUILD_ENV_GOLANG="${OS_BUILD_ENV_GOLANG:-1.7}"
 readonly OS_BUILD_ENV_IMAGE="${OS_BUILD_ENV_IMAGE:-openshift/origin-release:golang-${OS_BUILD_ENV_GOLANG}}"
 
 readonly OS_OUTPUT_SUBPATH="${OS_OUTPUT_SUBPATH:-_output/local}"
@@ -169,17 +169,17 @@ EOF
   if [[ "${TRAVIS:-}" != "true" ]]; then
     local go_version
     go_version=($(go version))
-    if [[ "${go_version[2]}" < "go1.5" ]]; then
+    if [[ "${go_version[2]}" < "go1.7" ]]; then
       cat <<EOF
 
 Detected Go version: ${go_version[*]}.
-Origin builds require Go version 1.6 or greater.
+Origin builds require Go version 1.7 or greater.
 
 EOF
       exit 2
     fi
   fi
-  # For any tools that expect this to be set (it is default in golang 1.6),
+  # For any tools that expect this to be set (it is default in golang 1.6+),
   # force vendor experiment.
   export GO15VENDOREXPERIMENT=1
 
